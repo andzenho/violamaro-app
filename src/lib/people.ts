@@ -15,6 +15,7 @@ export function normalizeUsername(username?: string | null): string | null {
   return trimmed.startsWith("@") ? trimmed.slice(1) : trimmed;
 }
 
+// Нормализованный вид для склейки дублей: только цифры, 8 в начале -> 7.
 export function normalizePhone(phone?: string | null): string | null {
   if (!phone) return null;
   let digits = phone.replace(/\D/g, "");
@@ -23,6 +24,12 @@ export function normalizePhone(phone?: string | null): string | null {
     digits = "7" + digits.slice(1);
   }
   return digits;
+}
+
+// В phone телефон хранится ровно в том виде, в каком его прислали.
+function rawPhone(phone?: string | null): string | null {
+  if (!phone || !phone.trim()) return null;
+  return phone;
 }
 
 export interface EventBody {
@@ -45,6 +52,7 @@ export interface Person {
   first_name: string | null;
   last_name: string | null;
   phone: string | null;
+  phone_norm: string | null;
   email: string | null;
   first_source: string | null;
   utm_source: string | null;
@@ -66,6 +74,7 @@ const FILLABLE_FIELDS = [
   "first_name",
   "last_name",
   "phone",
+  "phone_norm",
   "email",
   "utm_source",
   "utm_medium",
@@ -74,7 +83,7 @@ const FILLABLE_FIELDS = [
   "referrer",
 ] as const;
 
-function candidateValues(body: EventBody, username: string | null, phone: string | null) {
+function candidateValues(body: EventBody, username: string | null, phoneNorm: string | null) {
   const payload = body.payload ?? {};
   return {
     platform: body.platform ?? null,
@@ -82,7 +91,8 @@ function candidateValues(body: EventBody, username: string | null, phone: string
     username,
     first_name: body.first_name ?? null,
     last_name: body.last_name ?? null,
-    phone,
+    phone: rawPhone(body.phone),
+    phone_norm: phoneNorm,
     email: body.email ?? null,
     utm_source: typeof payload.utm_source === "string" ? payload.utm_source : null,
     utm_medium: typeof payload.utm_medium === "string" ? payload.utm_medium : null,
@@ -97,7 +107,7 @@ async function findPerson(
   platform: Platform,
   platformUserId: string | null,
   username: string | null,
-  phone: string | null
+  phoneNorm: string | null
 ): Promise<Person | null> {
   if (platformUserId) {
     const { data } = await supabase
@@ -120,11 +130,11 @@ async function findPerson(
     if (data) return data as Person;
   }
 
-  if (phone) {
+  if (phoneNorm) {
     const { data } = await supabase
       .from("people")
       .select("*")
-      .eq("phone", phone)
+      .eq("phone_norm", phoneNorm)
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
@@ -195,11 +205,11 @@ async function updatePerson(supabase: SupabaseClient, existing: Person, values: 
 
 export async function findOrCreatePerson(supabase: SupabaseClient, body: EventBody): Promise<Person> {
   const username = normalizeUsername(body.username);
-  const phone = normalizePhone(body.phone);
+  const phoneNorm = normalizePhone(body.phone);
   const platformUserId = body.platform_user_id ?? null;
 
-  const existing = await findPerson(supabase, body.platform, platformUserId, username, phone);
-  const values = candidateValues(body, username, phone);
+  const existing = await findPerson(supabase, body.platform, platformUserId, username, phoneNorm);
+  const values = candidateValues(body, username, phoneNorm);
 
   if (!existing) {
     return createPerson(supabase, values, body.source ?? null);
