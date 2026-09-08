@@ -2,18 +2,13 @@ import { NextResponse } from "next/server";
 import { isAuthorized, unauthorizedResponse } from "@/lib/auth";
 import { errorMessage } from "@/lib/error";
 import { isEventType } from "@/lib/events";
-import { findOrCreatePerson, isPlatform, type EventBody } from "@/lib/people";
-import { getSupabase } from "@/lib/supabase";
-
-interface EventRequestBody extends EventBody {
-  type: string;
-  test?: string | null;
-}
+import { isPlatform } from "@/lib/people";
+import { recordEvent, type EventInput } from "@/lib/track";
 
 export async function POST(request: Request) {
   if (!isAuthorized(request)) return unauthorizedResponse();
 
-  let body: EventRequestBody;
+  let body: EventInput;
   try {
     body = await request.json();
   } catch {
@@ -29,19 +24,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabase = getSupabase();
-    const person = await findOrCreatePerson(supabase, body);
-
-    const { error } = await supabase.from("events").insert({
-      person_id: person.id,
-      type: body.type,
-      source: body.source ?? null,
-      test: body.test ?? null,
-      payload: body.payload ?? null,
-    });
-    if (error) throw error;
-
-    return NextResponse.json({ ok: "1", person_id: person.id });
+    const personId = await recordEvent(body);
+    return NextResponse.json({ ok: "1", person_id: personId });
   } catch (error) {
     console.error("POST /api/event failed:", error);
     return NextResponse.json({ ok: "0", error: errorMessage(error) }, { status: 500 });

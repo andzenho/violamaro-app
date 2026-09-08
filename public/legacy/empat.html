@@ -8,19 +8,14 @@
 <meta name="description" content="Эмпат вы или нет — и как именно это у вас устроено: что вы считываете и во что вам это обходится. Три минуты, 24 утверждения.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Виола Маро">
-<meta property="og:url" content="https://andzenho.github.io/violamaro/">
+<meta property="og:url" content="https://violamaro-app.vercel.app/test/empat">
 <meta property="og:title" content="Есть у вас способности эмпата?">
 <meta property="og:description" content="Эмпат вы или нет — и как именно это у вас устроено: что вы считываете и во что вам это обходится. Три минуты, 24 утверждения.">
 <meta name="twitter:card" content="summary">
 <script>
 /* Страховка. Если основной скрипт не разберётся или упадёт на старом браузере,
    человек увидит текст и объяснение, а не белый экран — и мы узнаем об этом.
-   Здесь намеренно только ES5: этот блок обязан работать даже там, где не работает остальное.
-
-   Стоит ВЫШЕ подключения Телеграма, и это важно. Пока тег telegram-web-app.js
-   был первым и обычным, он держал разбор страницы: провайдер, который на запрос
-   не отвечает отказом, а молчит, оставлял человека перед белым экраном сколько
-   угодно долго — эта страховка до себя не доходила, и таймер ниже не запускался. */
+   Здесь намеренно только ES5: этот блок обязан работать даже там, где не работает остальное. */
 (function () {
   var shown = false;
   function fallback(msg) {
@@ -43,7 +38,7 @@
       'style="font:inherit;padding:.7rem 1.1rem;color:#fff;background:#A2703C;border:0;border-radius:4px">' +
       'Открыть заново</button></p>' +
       '<p style="margin:0 0 .9rem;color:#5C5162">Не помогло — откройте ту же ссылку в обычном браузере: ' +
-      '<a href="https://andzenho.github.io/violamaro/" style="color:#A2703C">andzenho.github.io/violamaro</a></p>' +
+      '<a href="' + location.origin + '/test/empat" style="color:#A2703C">' + location.host + '/test/empat</a></p>' +
       '<p style="margin:0;font-size:.8rem;color:#8B7F92">Если и там не открылось, пришлите нам эту строку: ' +
       String(msg).replace(/</g, "&lt;").slice(0, 200) + '</p></div>';
   }
@@ -58,45 +53,12 @@
   }, 7000);
 
   /* ——— когда стартовать ———
-     Телеграм грузится фоном и держать страницу больше не может. Тест ждёт его
-     не дольше TG_WAIT: доехал раньше — стартуем сразу, не доехал — стартуем без
-     него. Обращения к Телеграму в основном скрипте и так идут через
-     window.Telegram && window.Telegram.WebApp, поэтому без SDK тест просто
-     работает как в обычном браузере: не будет разворота во весь экран
-     и телеграм-id в таблице. Это несравнимо лучше белого экрана. */
-  var TG_WAIT = 3000;
-  var tgSettled = false, appStart = null, launched = false;
-
-  function launch() {
-    if (launched || !tgSettled || !appStart) return;
-    launched = true;
-    appStart();
-  }
-
-  /* Телеграм опоздал к запуску — подхватываем его на ходу: развернуть окно
-     и выключить свайпы можно и после того, как человек увидел первый экран. */
-  function lateInit() {
-    var tg = window.Telegram && window.Telegram.WebApp;
-    if (!tg) return;
-    try {
-      tg.ready();
-      tg.expand();
-      if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
-    } catch (e) {}
-  }
-
-  window.__tgSettled = function () {
-    if (tgSettled) return;
-    tgSettled = true;
-    if (launched) lateInit(); else launch();
-  };
-  window.__appStart = function (fn) { appStart = fn; launch(); };
-  setTimeout(window.__tgSettled, TG_WAIT);
+     Ждать больше нечего: Телеграма здесь нет, а скрипт теста встроен в саму
+     страницу. Точку входа оставляем прежней — основной скрипт по-прежнему
+     зовёт window.__appStart, и страховка выше по-прежнему ловит его падение. */
+  window.__appStart = function (fn) { fn(); };
 })();
 </script>
-<script async src="https://telegram.org/js/telegram-web-app.js"
-        onload="window.__tgSettled && window.__tgSettled()"
-        onerror="window.__tgSettled && window.__tgSettled()"></script>
 <title>Есть у вас способности эмпата?</title>
 <style>
   :root {
@@ -587,22 +549,10 @@
 <script>
 "use strict";
 
-/* ——— куда уходят результаты ———
-   sheetUrl — адрес приёмника из skripty/test-empat-sheets.gs.
-   Пусто — страница просто ничего никуда не шлёт, тест при этом работает. */
+/* ——— адреса, на которые уводит тест ———
+   Прохождения и заявки уходят не отсюда, а на /api/track — см. track_()
+   в конце файла. Здесь только то, куда человек уходит сам. */
 const CONFIG = {
-  /* Адрес развёртывания 2026-09-07 №14. В этой версии бот ищет заявку не
-     только в листе «Предзапись с теста», где есть Telegram ID, но и в
-     «Предзаписи с сайта» по логину в телеграме: иначе человек, оставивший
-     заявку по ссылке из сообщения, через двое суток получал «вижу, заявку
-     вы не оставили».
-     Адрес общий с тестом «Колесо эмпата», заявки обоих ложатся в один лист
-     «Предзапись с теста» и различаются колонкой «Откуда заявка».
-     ⚠️ У Apps Script развёртывание навсегда закрепляет ту версию кода, с
-     которой создано, поэтому адрес меняется при каждом обновлении скрипта.
-     Это нормально. Источник правды по адресу — продюсер, а не старые файлы
-     репозитория: прежние адреса живы и отвечают своими версиями. */
-  sheetUrl: "https://script.google.com/macros/s/AKfycbxzJaSclK7FTBSK0X7cAIJcscvwt9qyAGSsYGCrFHehtTvYPPEzTloDjCgsDj7v77n9jQ/exec",
   channelUrl: "https://t.me/+ot1pJz8KHlo2YTky",   // закрытый — для записавшихся
   publicChannel: "https://t.me/violamaro1",        // открытый — для тех, кто не эмпат
   botLink: "",      // https://t.me/имя_бота — возврат в чат
@@ -937,26 +887,9 @@ function esc(s) {
    а на неподновлённых Android его нет — и падал весь скрипт, экран оставался белым. */
 function render(node) {
   while (screen.firstChild) screen.removeChild(screen.firstChild);
-  linksThroughTelegram_(node);
   screen.appendChild(node);
   paintDial();
   toTop();
-}
-
-/* Правовые страницы открываем средствами Телеграма: обычный target=_blank
-   внутри мини-аппа на части клиентов просто не срабатывает. Раньше это стояло
-   только на экране анкеты — а первая такая ссылка попадается человеку раньше,
-   на первом экране, под кнопкой «Начать».
-   Ссылки на t.me не трогаем: их уводит openTelegramLink, и у них свои
-   обработчики — перехватить здесь значило бы открыть канал дважды. */
-function linksThroughTelegram_(node) {
-  node.querySelectorAll("a").forEach(a => a.addEventListener("click", (e) => {
-    const href = a.getAttribute("href");
-    if (!href || href.indexOf("http") !== 0) return;
-    if (href.indexOf("https://t.me/") === 0) return;
-    const tg = window.Telegram && window.Telegram.WebApp;
-    if (tg && tg.openLink) { e.preventDefault(); tg.openLink(href); }
-  }));
 }
 
 /* Каждый новый экран показываем с начала — иначе человек попадает
@@ -1068,14 +1001,7 @@ function result(prev) {
 
   const toOffer = n.querySelector("#offer");
   if (toOffer) toOffer.addEventListener("click", () => offer(r));
-  const toChannel = n.querySelector("#channel");
-  if (toChannel) toChannel.addEventListener("click", (e) => {
-    const tg = window.Telegram && window.Telegram.WebApp;
-    if (tg && tg.openTelegramLink) { e.preventDefault(); tg.openTelegramLink(CONFIG.publicChannel); }
-  });
-
-  n.querySelector("#again").addEventListener("click", () => { answers.length = 0; clearState(); flush();   // если в прошлый раз что-то не ушло
-intro(); });
+  n.querySelector("#again").addEventListener("click", () => { answers.length = 0; clearState(); intro(); });
 
   if (!prev) send(r);
   saveState();          // чтобы перезагрузка вернула человека на результат, а не в начало
@@ -1083,13 +1009,8 @@ intro(); });
 }
 
 /* ——— экран программы и переход в анкету ——— */
-function open_(url) {
-  if (!url) return;
-  const tg = window.Telegram && window.Telegram.WebApp;
-  if (tg && tg.openLink) tg.openLink(url); else window.open(url, "_blank", "noopener");
-}
-
 function offer(r) {
+  pingOffer_();
   const n = el(`
     <div class="card">
       <div class="title-block">
@@ -1137,12 +1058,12 @@ function offer(r) {
   render(n);
 }
 
-/* ——— запись в первый поток: имя и телеграм берём у Телеграма, если он их знает ——— */
+/* ——— запись в первый поток ———
+   Имя и логин раньше подставлял Телеграм. Он ушёл, подставлять некому —
+   поля открываются пустыми, и человек заполняет их сам. */
 function lead(r) {
-  const tg = window.Telegram && window.Telegram.WebApp;
-  const u = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
-  const known = esc([u.first_name, u.last_name].filter(Boolean).join(" "));
-  const tgName = esc(u.username ? "@" + u.username : "");
+  const known = "";
+  const tgName = "";
 
   const n = el(`
     <div class="card">
@@ -1260,9 +1181,8 @@ function lead(r) {
     btn.disabled = true;
     btn.textContent = "Отправляю…";
     sendLead(r, name, contact, talk, { pd: !!(pd && pd.checked), ads: !!(ads && ads.checked) });
-    /* Сначала рисуем «Готово», потом уводим в канал: на клиентах Телеграма
-       старше Bot API 7.0 openTelegramLink закрывает мини-апп, и экран
-       подтверждения человек бы не увидел вовсе. */
+    /* Сначала рисуем «Готово», потом уводим в канал: если окно всё-таки
+       откроется поверх, экран подтверждения человек уже увидел. */
     done();
     openChannel();   // обещали «сразу после записи» — открываем сами
   });
@@ -1270,15 +1190,13 @@ function lead(r) {
   render(n);
 }
 
-/* Внутри Телеграма уводим в канал сразу: это его собственный переход,
-   он открывается поверх и ничего не блокирует. В обычном браузере
-   не открываем ничего сами — там всплывающее окно просто съедят. */
+/* Уводим в канал сами, как и обещано на экране заявки. Открываем прямо
+   в обработчике клика, не дожидаясь ответа сервера: окно, открытое по
+   жесту человека, браузер пропускает, а открытое позже — съедает молча.
+   Не пропустил — ничего не потеряно: та же ссылка ждёт кнопкой на «Готово». */
 function openChannel() {
   if (!CONFIG.channelUrl) return;
-  const tg = window.Telegram && window.Telegram.WebApp;
-  if (tg && tg.openTelegramLink) {
-    try { tg.openTelegramLink(CONFIG.channelUrl); } catch (e) {}
-  }
+  try { window.open(CONFIG.channelUrl, "_blank", "noopener"); } catch (e) {}
 }
 
 function done() {
@@ -1292,142 +1210,129 @@ function done() {
           <p class="cta-note">Новое видите первыми, лучшие условия, подкасты и материалы, которых нет в открытом доступе.</p>
         </div>` : ""}
     </div>`);
-  const ch = n.querySelector("#ch");
-  if (ch) ch.addEventListener("click", (e) => {
-    const tg = window.Telegram && window.Telegram.WebApp;
-    if (tg && tg.openTelegramLink) { e.preventDefault(); tg.openTelegramLink(CONFIG.channelUrl); }
-  });
   render(n);
 }
 
-const BUFFER_KEY = "viola-pending";
+/* ——— кто открыл тест ———
+   Раньше человека называл Телеграм. Теперь его называет ссылка:
+   ?k=tg_12345 — разовый ключ от бота, это platform_user_id с префиксом
+   платформы; ?src=tg-bot — метка источника. Оба кладём в sessionStorage:
+   человек листает результат, жмёт «Пройти заново», возвращается — адрес
+   к этому моменту уже может быть без параметров, а связка нужна до конца. */
+const K_KEY = "viola-k";
+const SRC_KEY = "viola-src";
+const ANON_KEY = "viola-anon";
 
-/* Откуда человек пришёл на тест. Меткой трафика считается только то, что
-   пришло с префиксом src_ — ?startapp=src_kanal даёт «kanal». Всё остальное
-   в «Источник» не идёт: тот же start_param в колесе читает pryamoyVhod()
-   как ключ витрины (neudobnye, ap, praktikum), и без префикса витрина
-   записывалась бы в колонку вместо канала трафика.
-   ⚠️ Пока ссылки в боте не переведены на src_, метка будет пустой.
-   Это ожидаемо, а не поломка. */
-function istochnik_() {
-  const tg = window.Telegram && window.Telegram.WebApp;
-  const p = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || "";
-  return p.indexOf("src_") === 0 ? p.slice(4) : "";
+function izAdresa_(имя, ключ) {
+  let v = "";
+  try { v = new URLSearchParams(location.search).get(имя) || ""; } catch (e) {}
+  try {
+    if (v) sessionStorage.setItem(ключ, v);
+    else v = sessionStorage.getItem(ключ) || "";
+  } catch (e) {}
+  return v;
+}
+
+/* Читаем оба сразу при запуске, а не при первом событии: человек может
+   перезагрузить страницу раньше, чем что-то отправится, — и адрес к тому
+   моменту уже будет без параметров, а сохранить их будет некому. */
+const K = izAdresa_("k", K_KEY);
+const SRC = izAdresa_("src", SRC_KEY);
+
+/* Метка источника. Раньше приходила из start_param мини-аппа, теперь из
+   адреса. Отдаём как есть: что из неё принять, решает сервер. */
+function istochnik_() { return SRC; }
+
+/* Свой id для пришедших без ключа. Без него три события одного анонимного
+   прохождения легли бы в базу тремя разными людьми. Когда человек позже
+   откроет тест по ссылке из бота, сервер по этому же id сведёт прежние
+   события с опознанной записью — воронка не порвётся. */
+function anonId_() {
+  try {
+    let v = localStorage.getItem(ANON_KEY);
+    if (!v) {
+      v = "web_" + (Date.now().toString(36) + Math.random().toString(36).slice(2))
+        .replace(/[^a-z0-9]/g, "").slice(0, 24);
+      localStorage.setItem(ANON_KEY, v);
+    }
+    return v;
+  } catch (e) { return ""; }
+}
+
+/* ——— события ———
+   Ключа API у страницы нет и быть не может: она открыта в браузере.
+   Поэтому шлём на /api/track — он проверяет каждое поле и сам подставляет
+   секрет уже на сервере.
+   keepalive обязателен: test_done и offer_view уходят ровно в тот момент,
+   когда человек кликает дальше, и обычный запрос браузер бы оборвал.
+   Обёртка не про сеть, а про сам вызов: fetch есть не в каждом вебвью,
+   и без неё исключение ушло бы вверх — человек вместо теста получил бы
+   экран отказа из-за одного неотправленного события. */
+function track_(тип, payload, ещё) {
+  const body = {
+    type: тип,
+    test: "empat",
+    k: K,
+    anon_id: anonId_(),
+    source: istochnik_(),
+    payload: payload || null
+  };
+  if (ещё) Object.keys(ещё).forEach(k => { body[k] = ещё[k]; });
+  try {
+    return fetch("/api/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      keepalive: true
+    }).catch(() => {});
+  } catch (e) { return Promise.resolve(); }
 }
 
 /* Пинг «открыл первый вопрос». Бот по нему отличает «не открывал тест»
-   от «начал и бросил» и шлёт разный текст. Один раз за жизнь страницы
-   и мимо буфера: потеряется — не страшно, это не лид, а лид буфер и так
-   держит. Человек, вернувшийся к незаконченному тесту, попадает сразу
-   на вопрос, кнопку «Начать» не жмёт, второго пинга не будет. */
+   от «начал и бросил» и шлёт разный текст. Один раз за жизнь страницы:
+   человек, вернувшийся к незаконченному тесту, попадает сразу на вопрос,
+   кнопку «Начать» не жмёт, второго пинга не будет. */
 let pinged = false;
 function pingStart_() {
   if (pinged) return;
-  const tg = window.Telegram && window.Telegram.WebApp;
-  const u = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
-  if (!u.id || !CONFIG.sheetUrl) return;
   pinged = true;
-  send_({ type: "start", test: "empat", userId: u.id, istochnik: istochnik_() }).catch(() => {});
+  track_("test_open");
 }
 
-/* Данные уходят обычным GET с параметром: POST на веб-приложение Apps Script
-   у анонимных запросов упирается в редирект и не доходит. Проверено. */
-function send_(payload) {
-  return fetch(CONFIG.sheetUrl + "?payload=" + encodeURIComponent(JSON.stringify(payload)));
+/* Долистал до экрана программы. Тоже один раз за жизнь страницы: между
+   оффером и результатом можно ходить кнопками сколько угодно, и каждый
+   такой шаг не является новым просмотром. */
+let offerSeen = false;
+function pingOffer_() {
+  if (offerSeen) return;
+  offerSeen = true;
+  track_("offer_view");
 }
 
-/* Кладём в буфер и пробуем отправить. Не дошло — полежит и уйдёт
-   при следующем открытии страницы. Иначе обрыв связи = потерянный лид. */
-function queue(item) {
-  buffer(item);
-  flush();
-}
-
+/* Заявка. Единственное место, где у нас появляется контакт человека,
+   поэтому имя и контакт уходят и отдельными полями тоже: сервер разложит
+   их по колонкам, и заявку можно будет найти поиском, а дубли — склеить. */
 function sendLead(r, name, contact, talk, consent) {
-  const tg = window.Telegram && window.Telegram.WebApp;
-  const u = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
-  const lead = {
-    type: "lead",
-    name: name, contact: contact, ready: talk || "",
-    rank: r.key, percent: r.pct,
-    userId: u.id || "", forks: forks,
+  track_("lead", {
+    name: name,
+    contact: contact,
+    ready: talk || "",
+    rank: r.key,
+    percent: r.pct,
+    forks: forks,
     /* Акцепт фиксируем так же, как на сайте: сами галочки, время и редакция документа. */
     accept_pd: consent && consent.pd ? "да" : "",
     accept_ads: consent && consent.ads ? "да" : "",
     consent_ts: new Date().toISOString(),
-    doc_version_consent: CONFIG.docVersionConsent || "",
-    /* Та же метка, что у прохождения: по ней видно, какой трафик даёт заявки,
-       а не только прохождения. */
-    istochnik: istochnik_()
-  };
-  queue(lead);
-}
-
-function buffer(item) {
-  try {
-    const all = JSON.parse(localStorage.getItem(BUFFER_KEY) || "[]");
-    all.push(item);
-    localStorage.setItem(BUFFER_KEY, JSON.stringify(all));
-  } catch (e) {}
-}
-
-/* Вынимаем из буфера ровно одну запись — ту, что подтвердил приёмник. */
-function unbuffer(item) {
-  try {
-    const s = JSON.stringify(item);
-    const all = JSON.parse(localStorage.getItem(BUFFER_KEY) || "[]");
-    const i = all.findIndex(x => JSON.stringify(x) === s);
-    if (i !== -1) {
-      all.splice(i, 1);
-      localStorage.setItem(BUFFER_KEY, JSON.stringify(all));
-    }
-  } catch (e) {}
-}
-
-const inFlight = new Set();
-
-/* Буфер чистим ТОЛЬКО после подтверждения от приёмника.
-   Раньше буфер очищался до отправки — и если Телеграм выгружал вкладку,
-   пока запрос в пути (а он уходит ровно тогда, когда человека уводит в канал),
-   лид пропадал молча. Дубль в таблице пережить можно, потерю контакта — нет. */
-function flush() {
-  if (!CONFIG.sheetUrl) return;
-  let all = [];
-  try { all = JSON.parse(localStorage.getItem(BUFFER_KEY) || "[]"); } catch (e) { return; }
-  if (!all.length) return;
-  /* Обёртка не про сеть, а про сам вызов: fetch есть не в каждом вебвью,
-     и на телефоне без него исключение уходило вверх — в boot(). Человек
-     вместо теста получал экран отказа из-за одной недоставленной заявки. */
-  try {
-    all.forEach(item => {
-      const key = JSON.stringify(item);
-      if (inFlight.has(key)) return;     // тот же элемент уже летит — второй раз не шлём
-      inFlight.add(key);
-      send_(item)
-        .then(res => res.text())
-        .then(txt => {
-          /* Приёмник отвечает {"ok":true}. Если вместо этого прилетела страница
-             входа Google — значит развёртывание закрыто, и запись НЕ сохранилась.
-             Оставляем её в буфере до следующего раза. */
-          if (txt.indexOf('"ok"') !== -1) unbuffer(item);
-        })
-        .catch(() => {})
-        .then(() => { inFlight.delete(key); });
-    });
-  } catch (e) {}
+    doc_version_consent: CONFIG.docVersionConsent || ""
+  }, { name: name, contact: contact });
 }
 
 /* ——— отправка результата ———
-   Адресат один: таблица. Она получает всё сырьё для калибровки.
-
-   Бота отсюда НЕ трогаем. Telegram.WebApp.sendData по документации
-   «отправляет служебное сообщение боту, и мини-апп закрывается» — то есть
-   человек, открывший тест кнопкой клавиатуры, вылетал в чат ровно на переходе
-   к результату и своего типа не видел. Ранг и процент берём из таблицы. */
+   Уходит всё сырьё для калибровки: ранг и процент читает бот через
+   /api/status, остальное нужно, чтобы отличить честное прохождение от
+   прокликанного. */
 function send(r) {
-  const tg = window.Telegram && window.Telegram.WebApp;
-  const user = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
-
   const seconds = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
   const same = answers.length && answers.every(x => x === answers[0]);
 
@@ -1439,18 +1344,11 @@ function send(r) {
     percent: r.pct,
     scales: r.scales,
     forks: forks,
-    answers: answers.slice(),
-    userId: user.id || "",
-    userName: [user.first_name, user.last_name].filter(Boolean).join(" "),
-    /* Откуда человек пришёл на сам тест. Приходит из ссылки вида
-       t.me/…?startapp=src_reels — без этого не отличить трафик с рилсов от
-       трафика с канала, а конверсия у них разная в два раза. */
-    istochnik: istochnik_()
+    answers: answers.slice()
   };
   window.__result = payload;
 
-  /* Через буфер, как и лид: обрыв связи на этом шаге раньше терял прохождение молча. */
-  if (CONFIG.sheetUrl) queue(payload);
+  track_("test_done", payload);
 }
 
 /* ——— сохранение прогресса ———
@@ -1514,17 +1412,6 @@ function loadState() {
 }
 
 function boot() {
-  const tg = window.Telegram && window.Telegram.WebApp;
-  if (tg) {
-    tg.ready();
-    tg.expand();
-    /* Экран результата длинный. Пока листаешь его вниз, Телеграм может принять
-       прокрутку за жест «свернуть» и утащить приложение. Bot API 7.7+ */
-    if (tg.disableVerticalSwipes) { try { tg.disableVerticalSwipes(); } catch (e) {} }
-  }
-
-  flush();   // всё, что не ушло в прошлый раз, отправляем при каждом открытии
-
   const s = loadState();
   if (!s) { intro(); return; }
 
