@@ -1,4 +1,6 @@
+import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { runExport } from "@/lib/export/run";
 import { findOrCreatePerson, type EventBody, type Person } from "@/lib/people";
 import { getSupabase } from "@/lib/supabase";
 
@@ -69,6 +71,38 @@ async function absorbAnonymous(supabase: SupabaseClient, anonId: string, person:
   if (dropError) console.error("не удалось убрать анонимную запись после склейки:", dropError);
 }
 
+/* Таблица нужна отделу продаж ради заявок, поэтому заявка обновляет её
+   сразу, не дожидаясь ночного крона. Прохождения теста её не трогают:
+   гонять выгрузку ради каждого клика незачем. */
+const EXPORT_ON: ReadonlySet<string> = new Set(["lead"]);
+
+/* Заявки приходят пачками — несколько за минуту не редкость, а выгрузка
+   каждый раз переписывает лист целиком. Хватает флага в памяти процесса:
+   он не переживёт простой функции и не общий на все её копии, но и цель
+   скромная — снять очевидный повтор, а не выстроить точный счётчик.
+   Что этот флаг пропустит, всё равно догонит следующая заявка или крон. */
+const EXPORT_COOLDOWN_MS = 60_000;
+let lastExportAt = 0;
+
+function scheduleExport(): void {
+  const now = Date.now();
+  if (now - lastExportAt < EXPORT_COOLDOWN_MS) return;
+  lastExportAt = now;
+
+  /* after() — чтобы человек получил ответ сразу, а выгрузка досчиталась уже
+     после него: просто «повисший» промис функция на Vercel может не
+     доработать, оборвавшись вместе с ответом. */
+  after(async () => {
+    try {
+      await runExport(false);
+    } catch (error) {
+      /* Заявка уже в базе, так что терять нечего: ночной крон её выгрузит.
+         Роняем только выгрузку, не ответ человеку. */
+      console.error("выгрузка после заявки не удалась:", error);
+    }
+  });
+}
+
 /* Единственное место, где событие попадает в базу. Им пользуются оба роута:
    /api/event (для внешних сервисов, за ключом) и /api/track (для браузера,
    без ключа, но с жёстким белым списком полей). */
@@ -89,6 +123,8 @@ export async function recordEvent(input: EventInput, anonId?: string | null): Pr
     payload: input.payload ?? null,
   });
   if (error) throw error;
+
+  if (EXPORT_ON.has(input.type)) scheduleExport();
 
   return person.id;
 }
