@@ -1,0 +1,1560 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16121A">
+<!-- Карточка ссылки. Телеграм берёт og:title и og:description; без них
+     ссылка в канале и в пересылке выглядит голым адресом. Картинки нет —
+     превью текстовое, по решению продюсера. -->
+<meta name="description" content="Эмпат вы или нет — и как именно это у вас устроено: что вы считываете и во что вам это обходится. Три минуты, 24 утверждения.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Виола Маро">
+<meta property="og:url" content="https://andzenho.github.io/violamaro/">
+<meta property="og:title" content="Есть у вас способности эмпата?">
+<meta property="og:description" content="Эмпат вы или нет — и как именно это у вас устроено: что вы считываете и во что вам это обходится. Три минуты, 24 утверждения.">
+<meta name="twitter:card" content="summary">
+<script>
+/* Страховка. Если основной скрипт не разберётся или упадёт на старом браузере,
+   человек увидит текст и объяснение, а не белый экран — и мы узнаем об этом.
+   Здесь намеренно только ES5: этот блок обязан работать даже там, где не работает остальное.
+
+   Стоит ВЫШЕ подключения Телеграма, и это важно. Пока тег telegram-web-app.js
+   был первым и обычным, он держал разбор страницы: провайдер, который на запрос
+   не отвечает отказом, а молчит, оставлял человека перед белым экраном сколько
+   угодно долго — эта страховка до себя не доходила, и таймер ниже не запускался. */
+(function () {
+  var shown = false;
+  function fallback(msg) {
+    if (shown) return;
+    shown = true;
+    /* Причиной падения могло быть само сохранённое прохождение: формат менялся,
+       а запись живёт в памяти браузера до суток. Пока её не убирали, человек
+       получал этот экран при каждом открытии — сутки подряд, и «открыть заново»
+       ему не помогало. Убираем сразу: перезагрузка после этого лечит. */
+    try { localStorage.removeItem("viola-state"); } catch (e) {}
+    var box = document.getElementById("screen") || document.body;
+    if (!box) return;
+    box.innerHTML =
+      '<div style="max-width:32rem;margin:1.5rem auto;padding:1.4rem;font:16px/1.55 system-ui,-apple-system,sans-serif;' +
+      'color:#241D28;background:#fff;border:1px solid #E0D6DD;border-radius:4px">' +
+      '<p style="margin:0 0 .9rem;font-size:1.2rem">Тест не открылся с первого раза</p>' +
+      '<p style="margin:0 0 .9rem;color:#5C5162">Так бывает: оборвалась связь или страница не догрузилась. ' +
+      'Нажмите «Открыть заново» — обычно этого хватает.</p>' +
+      '<p style="margin:0 0 .9rem"><button onclick="location.reload()" ' +
+      'style="font:inherit;padding:.7rem 1.1rem;color:#fff;background:#A2703C;border:0;border-radius:4px">' +
+      'Открыть заново</button></p>' +
+      '<p style="margin:0 0 .9rem;color:#5C5162">Не помогло — откройте ту же ссылку в обычном браузере: ' +
+      '<a href="https://andzenho.github.io/violamaro/" style="color:#A2703C">andzenho.github.io/violamaro</a></p>' +
+      '<p style="margin:0;font-size:.8rem;color:#8B7F92">Если и там не открылось, пришлите нам эту строку: ' +
+      String(msg).replace(/</g, "&lt;").slice(0, 200) + '</p></div>';
+  }
+  window.__fallback = fallback;
+  window.addEventListener("error", function (e) {
+    fallback(e && e.message ? e.message : "неизвестная ошибка");
+  });
+  /* Скрипт у нас встроенный, ему нечего ждать. Пусто через семь секунд — значит не доехал. */
+  setTimeout(function () {
+    var s = document.getElementById("screen");
+    if (s && !s.firstChild) fallback("пустой экран");
+  }, 7000);
+
+  /* ——— когда стартовать ———
+     Телеграм грузится фоном и держать страницу больше не может. Тест ждёт его
+     не дольше TG_WAIT: доехал раньше — стартуем сразу, не доехал — стартуем без
+     него. Обращения к Телеграму в основном скрипте и так идут через
+     window.Telegram && window.Telegram.WebApp, поэтому без SDK тест просто
+     работает как в обычном браузере: не будет разворота во весь экран
+     и телеграм-id в таблице. Это несравнимо лучше белого экрана. */
+  var TG_WAIT = 3000;
+  var tgSettled = false, appStart = null, launched = false;
+
+  function launch() {
+    if (launched || !tgSettled || !appStart) return;
+    launched = true;
+    appStart();
+  }
+
+  /* Телеграм опоздал к запуску — подхватываем его на ходу: развернуть окно
+     и выключить свайпы можно и после того, как человек увидел первый экран. */
+  function lateInit() {
+    var tg = window.Telegram && window.Telegram.WebApp;
+    if (!tg) return;
+    try {
+      tg.ready();
+      tg.expand();
+      if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+    } catch (e) {}
+  }
+
+  window.__tgSettled = function () {
+    if (tgSettled) return;
+    tgSettled = true;
+    if (launched) lateInit(); else launch();
+  };
+  window.__appStart = function (fn) { appStart = fn; launch(); };
+  setTimeout(window.__tgSettled, TG_WAIT);
+})();
+</script>
+<script async src="https://telegram.org/js/telegram-web-app.js"
+        onload="window.__tgSettled && window.__tgSettled()"
+        onerror="window.__tgSettled && window.__tgSettled()"></script>
+<title>Есть у вас способности эмпата?</title>
+<style>
+  :root {
+    --ground: #F6F2F4;
+    --surface: #FFFFFF;
+    --surface-2: #F0EAEE;
+    --ink: #241D28;
+    --ink-soft: #5C5162;
+    --ink-mute: #8B7F92;
+    --line: #E0D6DD;
+    --line-strong: #C9BBC6;
+    --accent: #A2703C;
+    --accent-soft: #E8D9C6;
+    --warn: #B03A26;
+    --deep: #4B3556;
+    --shadow: 0 1px 2px rgba(36, 29, 40, .06), 0 8px 24px -12px rgba(36, 29, 40, .18);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #16121A;
+      --surface: #1E1922;
+      --surface-2: #262030;
+      --ink: #F2EBF2;
+      --ink-soft: #BCAFC2;
+      --ink-mute: #8B7F92;
+      --line: #322A38;
+      --line-strong: #473C50;
+      --accent: #D9A163;
+      --accent-soft: #3A2C22;
+      --warn: #F08A72;
+      --deep: #C4A5D6;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .6);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #16121A;
+    --surface: #1E1922;
+    --surface-2: #262030;
+    --ink: #F2EBF2;
+    --ink-soft: #BCAFC2;
+    --ink-mute: #8B7F92;
+    --line: #322A38;
+    --line-strong: #473C50;
+    --accent: #D9A163;
+    --accent-soft: #3A2C22;
+    --warn: #F08A72;
+    --deep: #C4A5D6;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 34rem;
+    margin: 0 auto;
+    padding: 1.25rem 1.15rem calc(3rem + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    min-height: 100vh;
+  }
+
+  /* — шкала приёмника — */
+  .top { display: flex; flex-direction: column; gap: .75rem; }
+
+  .brand {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: .7rem; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+
+  .dial { display: flex; gap: 3px; height: 22px; align-items: flex-end; }
+
+  .tick {
+    flex: 1;
+    height: 7px;
+    border-radius: 1px;
+    background: var(--line);
+    transition: height .25s ease, background-color .25s ease;
+  }
+  .tick.done { background: var(--line-strong); }
+  .tick.now { height: 22px; background: var(--accent); }
+
+  /* — карточка — */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1.6rem 1.4rem;
+    box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 1.4rem;
+  }
+
+  .step {
+    font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-mute); font-variant-numeric: tabular-nums;
+  }
+
+  h1, h2 {
+    font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    font-weight: 400;
+    letter-spacing: -.01em;
+    text-wrap: balance;
+    margin: 0;
+  }
+  h1 { font-size: 1.9rem; line-height: 1.25; }
+  h2 { font-size: 1.4rem; line-height: 1.35; }
+
+  /* Надзаголовок и заголовок держим одним блоком, чтобы между ними не влезал общий отступ карточки */
+  .title-block { display: flex; flex-direction: column; gap: .5rem; }
+  .title-block .step { color: var(--ink-soft); }
+  /* «Предзапись» — плашкой: это главное слово экрана, а не часть подписи.
+     Цвет текста берём от фона карточки, поэтому контраст держится в обеих темах. */
+  .step .tag {
+    display: inline-block;
+    background: var(--accent);
+    color: var(--surface);
+    padding: .25em .6em;
+    border-radius: 3px;
+    font-weight: 700;
+  }
+  /* Плашка стоит своей строкой, поэтому между ней и подписью отбивка меньше общей. */
+  .title-block .step + .step { margin-top: -.15rem; }
+
+  /* Название программы на экране предзаписи — главный акцент страницы */
+  h2.offer-title {
+    font-size: 2.3rem; line-height: 1.1;
+    letter-spacing: .02em;
+    color: var(--accent);
+  }
+
+  p { margin: 0; }
+  .lede { color: var(--ink-soft); }
+  .quiet { color: var(--ink-mute); font-size: .88rem; line-height: 1.5; }
+
+  .voice {
+    border-left: 2px solid var(--accent);
+    padding-left: .9rem;
+    font-family: Georgia, "Iowan Old Style", serif;
+    font-style: italic;
+    color: var(--ink-soft);
+    font-size: 1rem;
+  }
+
+  .answers { display: flex; flex-direction: column; gap: .55rem; }
+
+  button.ans {
+    appearance: none;
+    text-align: left;
+    font: inherit;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    padding: .85rem 1rem;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, transform .08s ease;
+  }
+  button.ans:hover { background: var(--surface-2); border-color: var(--accent); }
+  button.ans:active { transform: scale(.99); }
+
+  button.go {
+    appearance: none;
+    font: inherit;
+    font-weight: 600;
+    color: var(--ground);
+    background: var(--ink);
+    border: 1px solid var(--ink);
+    border-radius: 3px;
+    padding: .9rem 1.2rem;
+    cursor: pointer;
+    transition: opacity .15s ease;
+  }
+  button.go:hover { opacity: .88; }
+
+  button.go.big {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #FFF;
+    font-size: 1.06rem;
+    padding: 1.05rem 1.2rem;
+    box-shadow: 0 6px 18px -8px var(--accent);
+    transition: transform .12s ease, box-shadow .2s ease, filter .2s ease;
+  }
+  button.go.big:hover {
+    opacity: 1;
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px -10px var(--accent);
+  }
+  button.go.big:active { transform: translateY(0); }
+  button.go.big span { margin-left: .2rem; }
+
+  a.go { display: block; text-align: center; text-decoration: none; }
+  a.go.big { color: #FFF; }
+
+  .fields { display: flex; flex-direction: column; gap: .8rem; }
+  .fields label {
+    display: flex; flex-direction: column; gap: .35rem;
+    font-size: .74rem; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .fields input {
+    font: inherit; font-size: 1.02rem; color: var(--ink);
+    background: var(--surface-2);
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    padding: .8rem .9rem;
+    text-transform: none; letter-spacing: normal;
+  }
+  .fields input:focus { border-color: var(--accent); outline: none; }
+
+  .ask {
+    display: flex; flex-direction: column; gap: .5rem;
+    border: 1px solid transparent; border-radius: 3px;
+    margin: 0 -.7rem; padding: .7rem;
+    transition: border-color .2s ease, background-color .2s ease;
+  }
+  /* Пока на вопрос не ответили, а записаться уже нажали — обводим сам вопрос.
+     Подсказки под кнопкой человек не видит: она ниже сгиба и набрана мелким. */
+  .ask.need {
+    border-color: var(--warn);
+    background: rgba(176, 58, 38, .07);   /* без color-mix: его нет на старых Android */
+  }
+  .ask-need-note { color: var(--warn); font-size: .88rem; font-weight: 600; line-height: 1.4; }
+  .ask-q { font-size: 1rem; line-height: 1.4; }
+  .ask-note { font-size: .86rem; color: var(--ink-mute); line-height: 1.45; }
+  .chips { display: flex; gap: .5rem; margin-top: .2rem; }
+  /* Три варианта по-русски в строку не помещаются — столбиком и по левому краю. */
+  .chips-col { flex-direction: column; }
+  .chips-col .chip { text-align: left; }
+  .chip {
+    flex: 1; appearance: none; font: inherit; font-size: .95rem;
+    color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line-strong); border-radius: 3px;
+    padding: .7rem .6rem; cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .chip.on { background: var(--accent-soft); border-color: var(--accent); font-weight: 600; }
+
+  .promise {
+    background: var(--accent-soft);
+    border-radius: 3px;
+    padding: .9rem 1rem;
+    font-size: .95rem;
+    line-height: 1.45;
+  }
+
+  .cta-note {
+    font-size: .82rem; color: var(--ink-mute); text-align: center;
+    margin-top: -.15rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    button.go.big { transition: none; }
+    button.go.big:hover { transform: none; }
+  }
+
+  .ghost {
+    appearance: none; font: inherit; font-size: .85rem;
+    background: none; border: none; color: var(--ink-mute);
+    cursor: pointer; padding: .4rem 0; text-align: left;
+    align-self: flex-start;
+  }
+  .ghost:hover { color: var(--ink); }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* — результат — */
+  .verdict { display: flex; flex-direction: column; gap: .5rem; }
+  .verdict .cap {
+    font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .verdict h1 { color: var(--accent); font-size: 2.3rem; }
+
+  .body-copy { display: flex; flex-direction: column; gap: .85rem; }
+
+  .addendum {
+    background: var(--surface-2);
+    border-radius: 3px;
+    padding: .9rem 1rem;
+    font-size: .93rem;
+    color: var(--ink-soft);
+  }
+
+  .foot { display: flex; flex-direction: column; gap: .6rem; }
+
+  .bridge {
+    background: var(--accent-soft);
+    border-radius: 3px;
+    padding: 1rem 1.05rem;
+    font-family: Georgia, "Iowan Old Style", serif;
+    font-size: 1.05rem;
+    line-height: 1.45;
+  }
+
+  .inside {
+    display: flex; flex-direction: column; gap: .6rem;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 1.1rem 0;
+  }
+  .inside-h {
+    font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .inside ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .45rem; }
+  .inside li { position: relative; padding-left: 1.1rem; color: var(--ink); font-size: 1rem; line-height: 1.5; }
+  .inside li b { color: var(--ink-mute); font-weight: 400; margin-right: .35rem; }
+  .inside li::before {
+    content: ""; position: absolute; left: 0; top: .62em;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+  }
+  .inside .format { color: var(--ink-mute); font-size: .88rem; }
+  /* Вопрос недели — внутренний голос человека, поэтому курсив и отдельная строка. */
+  .inside li .wq {
+    display: block; margin-top: .18rem;
+    color: var(--ink-soft); font-size: .92rem; line-height: 1.4; font-style: italic;
+  }
+
+  .gets { display: flex; flex-direction: column; gap: .55rem; }
+  .gets-h {
+    font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .gets ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .4rem; }
+  .gets li {
+    position: relative; padding-left: 1.05rem;
+    color: var(--ink-soft); font-size: .95rem; line-height: 1.45;
+  }
+  .gets li::before { content: "—"; position: absolute; left: 0; color: var(--ink-mute); }
+  /* Подарки за ранний вход — тот же список, но выделен фоном и своей отметкой. */
+  .gets.bonus {
+    background: var(--surface-2);
+    border-radius: 3px;
+    padding: 1.05rem 1.1rem;
+  }
+  .gets.bonus .gets-h { color: var(--accent); }
+  /* Подарки метим эмодзи: на длинном экране взгляд цепляется за него раньше, чем за текст. */
+  .gets.bonus li { color: var(--ink); padding-left: 1.75rem; }
+  .gets.bonus li::before { content: "🎁"; font-size: 1rem; top: .05em; }
+  .gets.bonus li b { font-weight: 600; }
+
+  .med { color: var(--ink-mute); font-size: .82rem; line-height: 1.45; }
+  .consents { display: flex; flex-direction: column; gap: .65rem; }
+  .cb {
+    display: grid; grid-template-columns: 20px 1fr; gap: .55rem; align-items: start;
+    font-size: .88rem; line-height: 1.45; color: var(--ink-soft); cursor: pointer;
+  }
+  .cb input { width: 18px; height: 18px; margin: .1rem 0 0; accent-color: var(--accent); }
+  .cb a { color: var(--accent); }
+  .cb.err span { color: var(--warn); }
+  .cb.err input { outline: 2px solid var(--warn); outline-offset: 2px; }
+
+  .before-cta { display: flex; flex-direction: column; gap: .6rem; color: var(--ink); font-size: .97rem; line-height: 1.5; }
+  .gets.bonus .bonus-note {
+    margin-top: .3rem; padding-top: .7rem;
+    border-top: 1px solid var(--line);
+    color: var(--ink); font-size: .92rem; line-height: 1.45;
+  }
+  .cta-note.err { color: var(--warn); font-weight: 600; }
+  .fields input.err { border-color: var(--warn); }
+
+  /* Подсветка решающих мест. Одно средство на весь экран и не больше одного
+     выделения на абзац — иначе подсветка перестаёт что-либо выделять.
+     Внутри плашки .status не используем: акцент по accent-soft даёт слабый контраст,
+     там роль подсветки играет <b>. */
+  .hl { color: var(--accent); font-weight: 600; }
+
+  /* Рамка экрана: человек должен сразу понять, что продажи ещё не идут,
+     иначе страница читается как обычный лендинг и кнопка пугает оплатой. */
+  .status {
+    background: var(--accent-soft);
+    border-radius: 3px;
+    padding: .75rem .9rem;
+    color: var(--ink);
+    font-size: .93rem; line-height: 1.5;
+  }
+  .status b { font-weight: 600; }
+
+  .perks-wrap { display: flex; flex-direction: column; gap: .7rem; }
+  .perks-h {
+    font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+
+  .powers {
+    background: var(--surface-2);
+    border-radius: 3px;
+    padding: 1.05rem 1.1rem;
+    display: flex; flex-direction: column; gap: .65rem;
+  }
+  .powers-h {
+    font-size: .7rem; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--accent);
+  }
+  .powers ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .5rem; }
+  .powers li { position: relative; padding-left: 1.35rem; font-size: .96rem; line-height: 1.4; }
+  .powers li::before {
+    content: "✦"; position: absolute; left: 0; top: 0;
+    color: var(--accent); font-size: .85rem;
+  }
+
+  .intro-voice p { font-size: 1.02rem; }
+
+  /* Переход на предзапись. Раньше был хвостом моста и читался как продолжение
+     текста; отдельный блок с подзаголовком читается как следующий шаг.
+     Визуальный язык тот же, что у «суперспособностей», — без рамок и фонов. */
+  .next { margin-top: 1.35rem; }
+  /* Заголовок-вопрос, а не мелкий надзаголовок: человек на этом экране сам
+     себя спрашивает ровно это, и блок отвечает. Гарнитура и кегль — общие
+     для заголовков файла, своих не заводим. */
+  .next-1 {
+    margin-top: .7rem;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: .95rem; font-weight: 600; color: var(--ink);
+  }
+  /* Вторая строка — про предзапись. Легче по весу, чтобы не спорить с первой. */
+  .next-2 {
+    margin-top: .35rem;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: .93rem; font-weight: 400; color: var(--ink-soft);
+  }
+
+  .perks {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .7rem;
+  }
+  .perk {
+    display: flex; flex-direction: column; gap: .4rem;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 1rem .95rem;
+  }
+  .perk.wide {
+    grid-column: 1 / -1;
+    background: var(--accent-soft);
+    border-color: transparent;
+  }
+  .perk-h {
+    font-size: .7rem; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--accent); line-height: 1.3;
+  }
+  .perk.wide .perk-h { color: var(--ink); }
+  .perk p { color: var(--ink-soft); font-size: .92rem; line-height: 1.45; }
+  .perk.wide p { color: var(--ink-soft); font-size: .95rem; }
+
+  .disclaim {
+    font-size: .8rem; color: var(--ink-mute);
+    border-top: 1px solid var(--line); padding-top: .9rem;
+  }
+
+  .fade { animation: fade .18s ease-out; }
+  @keyframes fade { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .fade { animation: none; }
+    .tick { transition: none; }
+  }
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <span>Виола Маро</span>
+      <span id="counter"></span>
+    </div>
+    <div class="dial" id="dial"></div>
+  </div>
+  <div id="screen"></div>
+</div>
+
+<script>
+"use strict";
+
+/* ——— куда уходят результаты ———
+   sheetUrl — адрес приёмника из skripty/test-empat-sheets.gs.
+   Пусто — страница просто ничего никуда не шлёт, тест при этом работает. */
+const CONFIG = {
+  /* Адрес развёртывания 2026-09-07 №14. В этой версии бот ищет заявку не
+     только в листе «Предзапись с теста», где есть Telegram ID, но и в
+     «Предзаписи с сайта» по логину в телеграме: иначе человек, оставивший
+     заявку по ссылке из сообщения, через двое суток получал «вижу, заявку
+     вы не оставили».
+     Адрес общий с тестом «Колесо эмпата», заявки обоих ложатся в один лист
+     «Предзапись с теста» и различаются колонкой «Откуда заявка».
+     ⚠️ У Apps Script развёртывание навсегда закрепляет ту версию кода, с
+     которой создано, поэтому адрес меняется при каждом обновлении скрипта.
+     Это нормально. Источник правды по адресу — продюсер, а не старые файлы
+     репозитория: прежние адреса живы и отвечают своими версиями. */
+  sheetUrl: "https://script.google.com/macros/s/AKfycbxzJaSclK7FTBSK0X7cAIJcscvwt9qyAGSsYGCrFHehtTvYPPEzTloDjCgsDj7v77n9jQ/exec",
+  channelUrl: "https://t.me/+ot1pJz8KHlo2YTky",   // закрытый — для записавшихся
+  publicChannel: "https://t.me/violamaro1",        // открытый — для тех, кто не эмпат
+  botLink: "",      // https://t.me/имя_бота — возврат в чат
+  /* Правовые страницы живут на сайте оплаты — тексты и редакции там одни на всё. */
+  docs: {
+    consent: "https://andzenho.github.io/Viola-Maro/consent",
+    privacy: "https://andzenho.github.io/Viola-Maro/privacy",
+    ads:     "https://andzenho.github.io/Viola-Maro/consent-ads"
+  },
+  /* Редакция согласия на момент акцепта — та же, что на сайте. Меняется вместе с текстом. */
+  docVersionConsent: "2026-08-10"
+};
+
+/* ——— вопросы ———
+   scale: шкала · inv: обратный вопрос · ctrl: контрольный, в баллы не идёт */
+const Q = [
+  { t: "Вы понимаете, что человек чувствует, раньше, чем он это скажет.", s: "A" },
+  { t: "Вы слышите, когда человек говорит «всё хорошо», а внутри у него другое.", s: "A" },
+  { t: "Вы заходите к людям и сразу чувствуете, что здесь только что был тяжёлый разговор.", s: "A" },
+  { t: "Когда рядом человек расстроен, вам это не мешает спокойно заниматься своими делами.", s: "P", inv: true },
+  { t: "Вы почти всегда точно знаете, о чём человек думает.", s: "K", ctrl: true },
+  { t: "Вы легко говорите «нет» и потом об этом не думаете.", s: "P", inv: true },
+  { t: "Чужие эмоции вы видите, но они остаются чужими и в вас не переходят.", s: "P", inv: true,
+    note: "Вот. Дальше будет про то, во что вам это обходится." },
+  { t: "Было время, когда вы жили чужой жизнью и почти не помнили, чего хотите сами.", s: "I" },
+  { t: "Вы видели красные флажки — двойное дно, ложь на лице — и всё равно закрывали глаза и оставались.", s: "I" },
+  { t: "Раньше вы могли неделю носить в себе один чужой разговор.", s: "I" },
+  { t: "Чужая беда отзывается в вас как своя — иногда сильнее, чем у самого человека.", s: "B" },
+  { t: "Рядом с тяжёлым человеком отзывается тело: сжимается в груди, тяжелеет голова, крутит живот.", s: "B" },
+  { t: "После разговора, где вы кого-то поддерживали, вы выжаты, будто работали физически.", s: "B",
+    note: "Половину прошли. Тут дальше самое важное." },
+  { t: "Малознакомые люди быстро начинают рассказывать вам свою жизнь.", s: "C" },
+  { t: "Ваши радары настроены на всех, кроме себя: что нужно вам — вопрос, который ставит в тупик.", s: "C" },
+  { t: "Вам трудно отказать, даже когда у вас самих сил не осталось.", s: "C" },
+  { t: "Вы отдаёте своё время, помощь, знания даром — и потом об этом жалеете.", s: "C" },
+  { t: "Обмануть вас невозможно: ложь вы видите всегда.", s: "K", ctrl: true },
+  { t: "У вас есть свой способ восстанавливаться, и вы им пользуетесь заранее, а не когда уже накрыло.", s: "G", inv: true,
+    note: "И вот последнее. Это про то, откуда берётся усталость." },
+  { t: "Бывает, что хочется просто выключить приёмник — тишиной, сериалом, едой, бокалом, лишь бы не чувствовать.", s: "G" },
+  { t: "Ваше состояние зависит от того, кто именно рядом: с одним человеком легко, после другого вы разбиты.", s: "L" },
+  { t: "Когда рядом никого нет, вы приходите в себя: в тишине и одиночестве голова проясняется.", s: "L" },
+  { t: "Вас перегружает сама обстановка — шум, свет, слишком много всего вокруг, — даже когда людей рядом нет.", s: "F" },
+  { t: "Дела рассыпаются сами по себе: трудно начать, трудно закончить, теряется время и вещи — и так с детства.", s: "F" }
+];
+
+const SCALE = ["Да, прямо про меня", "Часто", "Редко", "Нет, это не про меня"];
+
+/* вилки — в баллы не идут, уходят в CRM */
+const FORKS = [
+  { k: "zapros", q: "Что хотите поменять первым?",
+    a: [["Отношения — чтобы рядом было тепло, а не выжимание", "otn"],
+        ["Деньги — перестать отдавать даром, начать получать", "dengi"],
+        ["Энергию — чтобы к вечеру оставались силы", "sily"],
+        ["Себя — наконец понять, чего хочу я", "ya"]] },
+  { k: "bol", q: "Где вас съедает сильнее всего?",
+    a: [["Близкие и семья", "semya"], ["Партнёр", "partner"], ["Работа и коллеги", "rabota"],
+        ["Клиенты и чужие люди", "chuzhie"], ["Везде понемногу", "vezde"]] }
+];
+
+/* вторая строка моста — под то, что человек назвал главным */
+const ZAPROS_LINE = {
+  otn:   "Рядом при этом может быть тепло, а не выжимание. Но сначала силы должны остаться у вас.",
+  dengi: "И деньги здесь не отдельная тема. Кто отдаёт себя даром, тот и берёт за свою работу неловко.",
+  sily:  "И тогда к вечеру остаётся что-то и на вашу собственную жизнь.",
+  ya:    "И только тогда становится слышно, чего хотите вы. Пока приёмник занят чужим, свой голос не пробивается."
+};
+
+const RESULTS = {
+  donor: {
+    name: "Эмпат-донор",
+    cap: "ваш тип",
+    body: [
+      "Вы всё знаете про всех. Кому сегодня тяжело, кого лучше не трогать, кому надо бы позвонить. Вот это у вас работает без выходных.",
+      "А про себя не знаете, и если спросить вас, чего хотите вы, — задумаетесь надолго.",
+      "Вы отдаёте время, силы, знания. Отдаёте даром. Потом на это же обижаетесь, и правильно обижаетесь.",
+      "Дар у вас есть. Только работает он на всех вокруг, а до вашей жизни не доходит."
+    ],
+    bridge: "Радары можно развернуть на себя. Сердце от этого не черствеет, наоборот — защищается."
+  },
+  filter: {
+    name: "Эмпат без фильтра",
+    cap: "ваш тип",
+    body: [
+      "Вы считываете человека раньше, чем он рот открыл, и это не воображение. Это правда так.",
+      "И вот за это платит тело. Голова тяжёлая, в груди сжимается, к вечеру вы уже никакая и никакой.",
+      "Вы устаёте от людей. Вот именно от людей, а не от дел, и усталости это совершенно разные.",
+      "Приёмник вам выдали. Инструкцию к нему не приложили."
+    ],
+    bridge: "Фильтр с рождения не выдают. Его собирают руками, и учатся этому в любом возрасте."
+  },
+  sleeping: {
+    name: "Спящий эмпат",
+    cap: "ваш тип",
+    body: [
+      "Вы давно научились себя выключать. Тишина, сериал, что-нибудь съесть, бокал вечером. Лишь бы не чувствовать.",
+      "Это не лень и не слабость, это усталость. Вы годами всё видели и делали вид, что не видите.",
+      "Только вот приёмник от этого не выключился: он работает в фоне и тянет из вас силы. А вы уже и не помните, на что."
+    ],
+    bridge: "Глушить — не единственный способ. Можно жить с включённым приёмником и не выгорать."
+  },
+  awake: {
+    name: "Проснувшийся эмпат",
+    cap: "ваш тип",
+    body: [
+      "Вы через это уже прошли.",
+      "Было время, когда вы жили чужой жизнью. Видели красные флажки, видели двойное дно — и всё равно оставались. Отчаянно хотелось верить.",
+      "Сейчас нет. Видите вы так же ясно, только внутрь больше не пускаете кого попало. С рождения такое не даётся, до этого доходят — и обычно дорого.",
+      "И вот теперь вопрос у вас другой. Куда девать силу, которая освободилась."
+    ],
+    bridge: "На это «куда» ответ есть. Практический, без поисков себя ещё на пять лет."
+  },
+  reader: {
+    name: "Считывающий",
+    cap: "ваш тип",
+    body: [
+      "Людей вы читаете лучше многих: видите, когда врут, слышите настроение, понимаете, кто чего от вас хочет.",
+      "А внутрь себя это не пускаете. И, судя по ответам, никогда не пускали — чужое у вас так и остаётся чужим.",
+      "А эмпат — это вот про другое: когда чужое заходит внутрь и живёт там до вечера. У вас так не устроено, и это не хуже. Там, где эмпат выжат досуха, вы спокойно идёте домой.",
+      "И здесь вы не случайно. Людей вы понимаете лучше, чем они сами себя."
+    ]
+  },
+  caring: {
+    name: "Сочувствующий",
+    cap: "ваш тип",
+    body: [
+      "Людей вы чувствуете нормально. Сочувствуете, замечаете, поддерживаете. Так живёт большинство, и с этим всё в порядке.",
+      "Эмпат — это вот про другую громкость, когда чужое состояние заходит внутрь и остаётся там до вечера.",
+      "Если вы здесь из-за близкого человека, у которого именно так, — вы по адресу. Просто с другой стороны."
+    ]
+  },
+  other: {
+    name: "Другая настройка",
+    cap: "ваш тип",
+    body: [
+      "Вас выбивают не люди, а сама обстановка: шум, свет, слишком много всего сразу. Устаёте вы от количества, а не от человека рядом.",
+      "Такое часто описывают как СДВГ. Может быть и не так — по тесту это не решается, и заочно вам этого никто не скажет. Мешает жить — сходите очно к специалисту.",
+      "Одно сказать можно точно. Чувствуете вы больше среднего. Это не диагноз и не приговор."
+    ]
+  }
+};
+
+/* Под каждой неделей стоит вопрос — тот, которым человек сам про себя думает.
+   Формулировки взяты из программы; они же дословно звучат в комментариях канала,
+   поэтому работают на узнавание сильнее, чем описание содержания. */
+const OFFER = {
+  tag: "Предзапись",
+  eyebrow: "6-недельный практикум Виолы Маро для эмпатов",
+  title: "Прикладная эмпатия",
+  lead: "Полностью обновлённая программа — с упором на практику и на реальные жизненные ситуации. <span class=\"hl\">Старт 1 октября.</span>",
+  status: "<b>Набор в первый поток уже открыт.</b> Место можно занять сейчас.",
+  body: [
+    "Эмпатия — это способность. <span class=\"hl\">У вас она есть.</span> Пользоваться ей вас никто не учил.",
+    "Здесь вы научитесь пользоваться своей эмпатией во всех сферах жизни."
+  ],
+  insideHead: "Шесть недель. Одна неделя — одна сфера вашей жизни",
+  inside: [
+    "<b>Неделя 1.</b> Фигура эмпата<span class=\"wq\">Кто я такой? Это дар или со мной что-то не так?</span>",
+    "<b>Неделя 2.</b> Эмпат и отношения с людьми<span class=\"wq\">Почему мной пользуются? Как отказать и не чувствовать вину?</span>",
+    "<b>Неделя 3.</b> Эмпат-родители и эмпат-дети<span class=\"wq\">Как быть опорой родным и жить при этом свою жизнь?</span>",
+    "<b>Неделя 4.</b> Психосоматика у эмпата<span class=\"wq\">Почему всё время что-то болит, а врачи ничего не находят?</span>",
+    "<b>Неделя 5.</b> Самореализация при повышенной чувствительности<span class=\"wq\">Как найти своё место, когда внутри богато, а снаружи всё слишком грубо?</span>",
+    "<b>Неделя 6.</b> Психология наполненности и деньги<span class=\"wq\">Почему я не могу удержать деньги? В чём моя ценность?</span>"
+  ],
+  /* Формулировки взяты с сайта дословно, чтобы человек не сверял два разных списка.
+     Показываем максимум и по тарифам не размечаем — разметка живёт на сайте. */
+  getsHead: "Каждую неделю вы получаете",
+  gets: [
+    "Лекцию Виолы в прямом эфире",
+    "Вопросы и ответы в конце лекции",
+    "Вопрос Виоле на аудиоразбор",
+    "Три техники эмпата",
+    "Практическое задание",
+    "Запись и PDF-конспект"
+  ],
+  /* То, что не привязано к неделе. Отдельным списком, чтобы было видно: сверх недельного есть ещё. */
+  extraHead: "И сверх этого",
+  extra: [
+    "Чат потока",
+    "Мастер-класс в прямом эфире с ответами Виолы",
+    "Участие в финальной встрече",
+    "Разбор вас как эмпата, личный PDF",
+    "Большая методичка по итогам",
+    "Аудиомедитация на изобилие",
+    "<span class=\"hl\">Доступ навсегда</span>"
+  ],
+  med: "Практикум не заменяет обследование и лечение у врача.",
+  /* Отличие от бесплатного контента ставим после программы: сначала человек видит, что внутри, и уже потом — почему этого нет в роликах. */
+  afterInside: "Ролики в YouTube и в соцсетях Виола делает для широкой аудитории, там про людей вообще. Здесь всё собрано <span class=\"hl\">только под эмпатов</span>.",
+  perksHead: "Что даёт запись в список",
+  perks: [
+    { h: "Самая низкая цена", d: "Тем, кто в списке, практикум открывается по самой низкой цене." },
+    { h: "Закрытый канал Виолы", d: "Новое вы видите первыми, здесь лучшие условия, здесь подкасты и материалы, которых нет в открытом доступе." },
+    { h: "Право сказать, что включить", d: "В канале спросим, чего вам не хватает, и соберём из ваших ответов часть программы. Вы всю жизнь угадываете, что нужно другим. А тут спросят вас.", wide: true }
+  ],
+  /* Бонусы за раннюю покупку — отдельно от того, что даёт сама запись в список.
+     Смешивать нельзя: одно получают за контакт, другое за вход в поток. */
+  /* Дата вместо «первым оплатит»: «первым» без названного числа —
+     непроверяемый дефицит, прямой запрет кодекса честности. 18 сентября —
+     конец второго окна продаж по лестнице (produkt/marafon-po-sferam.md §1а),
+     с 19-го цена растёт. Окно бонусов открыто заново решением продюсера
+     07.09: до этого оно было закрыто с 23.08. */
+  bonusHead: "И три лекции в подарок тем, кто оплатит до 18 сентября",
+  bonusNote: "Событие «Неудобные» 11–13 сентября тоже в подарок тем, кто оплатит до 18 сентября. Оно стоит 3 000 ₽, для вас будет бесплатным. Кто оплатит после 13 сентября, получит полную запись.",
+  bonus: [
+    "<b>«Любовь и деньги».</b> Лекция Виолы о том, почему и любовь, и деньги — про одно и то же состояние наполненности.",
+    "<b>Разбор фильма «Догвиль».</b> Как эмпат оказывается в позиции жертвы, как устроена эмоциональная зависимость и как из неё выходят.",
+    "<b>Большой мастер-класс на узнавание себя.</b> Там подробно разобрано то, что тест показал вам коротко."
+  ],
+  /* Главное возражение перед кнопкой — «а что дальше?». Отвечаем до нажатия, а не после. */
+  beforeCta: [
+    "После заявки с вами свяжется команда Виолы Маро. Расскажут, как устроен практикум и какой тариф под вашу задачу, ответят на вопросы и помогут с оплатой — в том числе в рассрочку.",
+    "И закрепят за вами <b>вход по самой низкой цене</b> — она держится до 18 сентября."
+  ],
+  cta: "Оставить заявку",
+  ctaNote: "<span class=\"hl\">Платить сейчас ничего не нужно.</span> Два поля — имя и телеграм."
+};
+
+/* ——— «ваши суперспособности»: выводим из ответов, а не раздаём всем одинаково.
+   Берём три самые сильные стороны — так это читается как вывод, а не как лесть. */
+function powers(sc, v) {
+  const list = [
+    { w: sc.A,        t: "Считываете человека раньше, чем он открыл рот" },
+    { w: v[1] * 3,    t: "Слышите, когда слова про одно, а человек про другое" },
+    { w: v[2] * 3,    t: "Заходите в комнату и уже знаете, что тут было пять минут назад" },
+    { w: sc.C,        t: "Вам рассказывают то, о чём с другими молчат" },
+    { w: sc.B,        t: "Тело понимает раньше головы" },
+    { w: sc.I,        t: "Растворялись в другом человеке — и собрали себя обратно" },
+    { w: 9 - sc.P,    t: "Держите дистанцию и при этом не остываете к людям" },
+    { w: (6 - sc.G) * 1.5, t: "Восстанавливаетесь заранее, пока ещё не накрыло" },
+    { w: sc.L * 1.5,  t: "Точно знаете, от кого именно устали" }
+  ];
+  return list.sort((a, b) => b.w - a.w).slice(0, 3).map(x => x.t);
+}
+
+/* Экран результата — самый читаемый экран теста: человек только что узнал свой
+   тип и здесь же спрашивает «а как конкретно?». Отвечаем отдельным блоком, а не
+   хвостом моста: что, когда и на каких условиях. Новых обещаний не даём. */
+const NEXT_1 = "1 октября у Виолы Маро стартует практикум для эмпатов «Прикладная эмпатия». Его задача — научить вас пользоваться своей эмпатией во благо себе.";
+const NEXT_2 = "Сейчас идёт предзапись. До 18 сентября действует самая низкая цена, с 19 сентября она вырастет. Заявка бесплатная и ни к чему не обязывает.";
+
+const FON_NOTE = "Отдельно: часть того, что вас грузит, идёт не от людей, а от общего фона — шум, свет, слишком много всего. Это не про эмпатию, и в тесте оно не решается.";
+
+/* ——— состояние ——— */
+let stage = "intro";      // intro | q | fork | result
+let idx = 0;
+const answers = [];        // баллы 3..0 по каждому вопросу
+const forks = {};
+let startedAt = 0;   // засекаем на первом вопросе — чтобы отличить честное прохождение от прокликанного
+/* Посчитанный результат храним отдельно: если пороги когда-нибудь поменяются,
+   человек при возврате должен увидеть тот же тип, что и в первый раз. */
+let lastResult = null;
+
+const screen = document.getElementById("screen");
+const dial = document.getElementById("dial");
+const counter = document.getElementById("counter");
+
+Q.forEach(() => {
+  const t = document.createElement("div");
+  t.className = "tick";
+  dial.appendChild(t);
+});
+
+function paintDial() {
+  const ticks = dial.children;
+  for (let i = 0; i < ticks.length; i++) {
+    ticks[i].className = "tick" +
+      (stage === "q" && i === idx ? " now" : (i < answers.length ? " done" : ""));
+  }
+  counter.textContent = stage === "q" ? (idx + 1) + " / " + Q.length
+    : stage === "fork" ? "почти всё"
+    : stage === "result" ? "результат" : "";
+}
+
+/* ——— подсчёт ——— */
+function inv(v) { return 3 - v; }
+
+function score() {
+  const v = answers;
+  const A = v[0] + v[1] + v[2];
+  const P = inv(v[3]) + inv(v[5]) + inv(v[6]);
+  const I = v[7] + v[8] + v[9];
+  const B = v[10] + v[11] + v[12];
+  const C = v[13] + v[14] + v[15] + v[16];
+  const G = inv(v[18]) + v[19];
+  const L = v[20] + v[21];
+  const F = v[22] + v[23];
+  const K = (v[4] === 3 ? 1 : 0) + (v[17] === 3 ? 1 : 0);
+
+  const dar = A / 9;
+  const prox = Math.max(P, I) / 9;
+  const price = Math.max(B / 9, C / 12, I / 9);
+  let pct = Math.round(dar * 40 + prox * 30 + price * 30);
+  if (K === 2) pct -= 10;
+  pct = Math.max(20, Math.min(97, pct));
+
+  /* Порядок важен: «считывающий» проверяется последним из отказов — иначе он
+     забирает и тех, у кого просто тихий приёмник, и тех, кого грузит фон. */
+  let key;
+  if (F >= 5 && L <= 1 && A <= 5) key = "other";
+  else if (A <= 3 && C <= 4) key = "caring";
+  else if (A >= 6 && P <= 3 && I <= 4 && B <= 3) key = "reader";
+  /* Проснулся — это разрыв между историей и тем, на кого развёрнуты радары сейчас.
+     Шкала «тело» из условия убрана намеренно: дар остаётся, меняется адресат,
+     и телесный отклик у проснувшегося никуда не девается. Прежнее условие требовало
+     почти нулевого тела и идеальной гигиены — за 53 прохождения не сработало ни разу. */
+  else if (I >= 6 && (I - C) >= 1 && G <= 4 && K < 2) key = "awake";
+  else {
+    const b = B / 9, c = C / 12, g = G / 6;
+    key = (c >= b && c >= g) ? "donor" : (b >= g ? "filter" : "sleeping");
+  }
+
+  const empath = ["donor", "filter", "sleeping", "awake"].includes(key);
+  return { key, pct, fon: empath && F >= 4, scales: { A, P, I, B, C, G, L, F, K } };
+}
+
+/* ——— экраны ——— */
+function el(html) {
+  const d = document.createElement("div");
+  d.className = "fade";
+  d.innerHTML = html;
+  return d;
+}
+
+/* Имя из Телеграма подставляется в разметку. Кавычка в имени рвала атрибут
+   value и оставляла поле пустым — а такие имена в Телеграме встречаются. */
+const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ESC[c]);
+}
+
+/* Без replaceChildren: он появился только в Chrome 86 (конец 2020),
+   а на неподновлённых Android его нет — и падал весь скрипт, экран оставался белым. */
+function render(node) {
+  while (screen.firstChild) screen.removeChild(screen.firstChild);
+  linksThroughTelegram_(node);
+  screen.appendChild(node);
+  paintDial();
+  toTop();
+}
+
+/* Правовые страницы открываем средствами Телеграма: обычный target=_blank
+   внутри мини-аппа на части клиентов просто не срабатывает. Раньше это стояло
+   только на экране анкеты — а первая такая ссылка попадается человеку раньше,
+   на первом экране, под кнопкой «Начать».
+   Ссылки на t.me не трогаем: их уводит openTelegramLink, и у них свои
+   обработчики — перехватить здесь значило бы открыть канал дважды. */
+function linksThroughTelegram_(node) {
+  node.querySelectorAll("a").forEach(a => a.addEventListener("click", (e) => {
+    const href = a.getAttribute("href");
+    if (!href || href.indexOf("http") !== 0) return;
+    if (href.indexOf("https://t.me/") === 0) return;
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (tg && tg.openLink) { e.preventDefault(); tg.openLink(href); }
+  }));
+}
+
+/* Каждый новый экран показываем с начала — иначе человек попадает
+   на середину длинного текста и не понимает, что сменилось. */
+function toTop() {
+  try {
+    window.scrollTo(0, 0);
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  } catch (e) {}
+}
+
+function intro() {
+  stage = "intro";
+  const n = el(`
+    <div class="card">
+      <h1>Есть у вас способности эмпата?</h1>
+      <div class="body-copy intro-voice">
+        <p>Тут двадцать четыре утверждения. Про то, как вы чувствуете других людей и что с вами при этом происходит.</p>
+        <p>Отвечайте сразу, первым, что придёт в голову. Начнёте примерять каждое слово — получится про кого-то другого.</p>
+        <p>И вот в конце вы увидите, есть ли у вас способности эмпата. А если есть — то как они у вас работают.</p>
+        <p>Правильных ответов тут нет, оценивать вас никто не будет. Три минуты. Поехали.</p>
+      </div>
+      <p class="quiet">Это не диагностика и не диагноз. Это способ посмотреть на себя со стороны.</p>
+      <button class="go" id="start">Начать</button>
+      <p class="quiet">Нажимая «Начать», вы соглашаетесь с <a href="${CONFIG.docs.privacy}" target="_blank" rel="noopener">Политикой обработки персональных данных</a>.</p>
+    </div>`);
+  n.querySelector("#start").addEventListener("click", () => { idx = 0; startedAt = Date.now(); pingStart_(); stage = "q"; saveState(); question(); });
+  render(n);
+}
+
+function question() {
+  stage = "q";
+  const q = Q[idx];
+  const n = el(`
+    <div class="card">
+      ${q.note ? `<p class="voice">${q.note}</p>` : ""}
+      <div class="step">Утверждение ${idx + 1}</div>
+      <h2>${q.t}</h2>
+      <div class="answers">
+        ${SCALE.map((s, i) => `<button class="ans" data-v="${3 - i}">${s}</button>`).join("")}
+      </div>
+      ${idx > 0 ? `<button class="ghost" id="back">← Назад</button>` : ""}
+    </div>`);
+
+  n.querySelectorAll(".ans").forEach(b => b.addEventListener("click", () => {
+    answers[idx] = Number(b.dataset.v);
+    idx++;
+    if (idx < Q.length) { saveState(); question(); } else { idx = 0; saveState(); fork(); }
+  }));
+  const back = n.querySelector("#back");
+  if (back) back.addEventListener("click", () => { idx--; answers.length = idx; saveState(); question(); });
+  render(n);
+}
+
+function fork() {
+  stage = "fork";
+  const f = FORKS[idx];
+  const n = el(`
+    <div class="card">
+      <div class="step">Ещё ${FORKS.length - idx} ${FORKS.length - idx === 1 ? "вопрос" : "вопроса"}</div>
+      <h2>${f.q}</h2>
+      <div class="answers">
+        ${f.a.map((o, i) => `<button class="ans" data-i="${i}">${o[0]}</button>`).join("")}
+      </div>
+    </div>`);
+  n.querySelectorAll(".ans").forEach(b => b.addEventListener("click", () => {
+    const pick = f.a[Number(b.dataset.i)]; forks[f.k] = pick[1]; forks[f.k + "_text"] = pick[0];
+    idx++;
+    saveState();
+    if (idx < FORKS.length) fork(); else result();
+  }));
+  render(n);
+}
+
+function result(prev) {
+  stage = "result";
+  const r = prev || score();
+  lastResult = r;
+  const t = RESULTS[r.key];
+
+  const n = el(`
+    <div class="card">
+      <div class="verdict">
+        <div class="cap">${t.cap}</div>
+        <h1>${t.name}</h1>
+      </div>
+      <div class="body-copy">${t.body.map(p => `<p>${p}</p>`).join("")}</div>
+      ${["donor","filter","sleeping","awake","reader"].includes(r.key) ? `
+        <div class="powers">
+          <div class="powers-h">Ваши суперспособности</div>
+          <ul>${powers(r.scales, answers).map(x => `<li>${x}</li>`).join("")}</ul>
+        </div>` : ""}
+      ${r.fon ? `<p class="addendum">${FON_NOTE}</p>` : ""}
+      ${t.bridge ? `<p class="bridge">${t.bridge}${forks.zapros && ZAPROS_LINE[forks.zapros] ? " " + ZAPROS_LINE[forks.zapros] : ""}</p>
+      <div class="next">
+        <h2>Что с этим делать?</h2>
+        <p class="next-1">${NEXT_1}</p>
+        <p class="next-2">${NEXT_2}</p>
+      </div>` : ""}
+      <div class="foot">
+        ${t.bridge ? `<button class="go big" id="offer">Что за Прикладная эмпатия?&nbsp;<span aria-hidden="true">→</span></button>` : ""}
+        ${!t.bridge && CONFIG.publicChannel ? `<a class="go big" id="channel" href="${CONFIG.publicChannel}" target="_blank" rel="noopener">Читать Виолу в Телеграме <span aria-hidden="true">→</span></a>
+        <p class="cta-note">Каждый день — про людей, границы и чувствительность.</p>` : ""}
+        <button class="ghost" id="again">Пройти заново</button>
+      </div>
+      <p class="disclaim">Это не диагностика и не диагноз. Это способ посмотреть на себя со стороны.</p>
+    </div>`);
+
+  const toOffer = n.querySelector("#offer");
+  if (toOffer) toOffer.addEventListener("click", () => offer(r));
+  const toChannel = n.querySelector("#channel");
+  if (toChannel) toChannel.addEventListener("click", (e) => {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (tg && tg.openTelegramLink) { e.preventDefault(); tg.openTelegramLink(CONFIG.publicChannel); }
+  });
+
+  n.querySelector("#again").addEventListener("click", () => { answers.length = 0; clearState(); flush();   // если в прошлый раз что-то не ушло
+intro(); });
+
+  if (!prev) send(r);
+  saveState();          // чтобы перезагрузка вернула человека на результат, а не в начало
+  render(n);
+}
+
+/* ——— экран программы и переход в анкету ——— */
+function open_(url) {
+  if (!url) return;
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg && tg.openLink) tg.openLink(url); else window.open(url, "_blank", "noopener");
+}
+
+function offer(r) {
+  const n = el(`
+    <div class="card">
+      <div class="title-block">
+        <div class="step"><span class="tag">${OFFER.tag}</span></div>
+        <div class="step">${OFFER.eyebrow}</div>
+        <h2 class="offer-title">${OFFER.title}</h2>
+      </div>
+      <p class="lede">${OFFER.lead}</p>
+      <p class="status">${OFFER.status}</p>
+      <div class="body-copy">${OFFER.body.map(p => `<p>${p}</p>`).join("")}</div>
+      <div class="inside">
+        <div class="inside-h">${OFFER.insideHead}</div>
+        <ul>${OFFER.inside.map(i => `<li>${i}</li>`).join("")}</ul>
+      </div>
+      <div class="gets">
+        <div class="gets-h">${OFFER.getsHead}</div>
+        <ul>${OFFER.gets.map(i => `<li>${i}</li>`).join("")}</ul>
+      </div>
+      <div class="gets">
+        <div class="gets-h">${OFFER.extraHead}</div>
+        <ul>${OFFER.extra.map(i => `<li>${i}</li>`).join("")}</ul>
+      </div>
+      <div class="body-copy"><p>${OFFER.afterInside}</p></div>
+      <p class="med">${OFFER.med}</p>
+      <div class="perks-wrap">
+        <div class="perks-h">${OFFER.perksHead}</div>
+        <div class="perks">
+          ${OFFER.perks.map(p => `<div class="perk${p.wide ? " wide" : ""}"><div class="perk-h">${p.h}</div><p>${p.d}</p></div>`).join("")}
+        </div>
+      </div>
+      <div class="gets bonus">
+        <div class="gets-h">${OFFER.bonusHead}</div>
+        <ul>${OFFER.bonus.map(i => `<li>${i}</li>`).join("")}</ul>
+        ${OFFER.bonusNote ? `<p class="bonus-note">${OFFER.bonusNote}</p>` : ""}
+      </div>
+      <div class="foot">
+        <div class="before-cta">${OFFER.beforeCta.map(t => `<p>${t}</p>`).join("")}</div>
+        <button class="go big" id="form">${OFFER.cta} <span aria-hidden="true">→</span></button>
+        <p class="cta-note">${OFFER.ctaNote}</p>
+        <button class="ghost" id="back-res">← Вернуться к результату</button>
+      </div>
+    </div>`);
+  n.querySelector("#form").addEventListener("click", () => lead(r));
+  n.querySelector("#back-res").addEventListener("click", () => result(r));
+  render(n);
+}
+
+/* ——— запись в первый поток: имя и телеграм берём у Телеграма, если он их знает ——— */
+function lead(r) {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const u = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+  const known = esc([u.first_name, u.last_name].filter(Boolean).join(" "));
+  const tgName = esc(u.username ? "@" + u.username : "");
+
+  const n = el(`
+    <div class="card">
+      <div class="step">Предзапись</div>
+      <h2>Записываю вас в предзапись</h2>
+      ${known && tgName ? `
+        <p class="lede">Записываю как <b>${known}</b>, ${tgName}. Если что-то не так — поправьте.</p>` : `
+        <p class="lede">Оставьте, как к вам обращаться и куда написать приглашение.</p>`}
+      <div class="fields">
+        <label>Как вас зовут
+          <input id="f-name" type="text" value="${known}" placeholder="Имя" autocomplete="name">
+        </label>
+        <label>Телеграм
+          <input id="f-tg" type="text" value="${tgName}" placeholder="@имя" autocomplete="off">
+        </label>
+      </div>
+      <div class="ask" id="ask">
+        <div class="ask-q">Насколько вы готовы занять место на «Прикладной эмпатии»?</div>
+        <p class="ask-note">Ответ ни к чему не обязывает. Он нужен, чтобы мы понимали, с чего начать разговор.</p>
+        <div class="chips chips-col">
+          <button class="chip" data-v="готов сейчас">Готов(-а) занять сейчас</button>
+          <button class="chip" data-v="остались вопросы">Почти решаю, остались вопросы</button>
+          <button class="chip" data-v="присматриваюсь">Пока присматриваюсь</button>
+        </div>
+        <p class="ask-need-note" id="ask-need" hidden>Выберите один из вариантов — и нажмите кнопку ниже.</p>
+      </div>
+      <div class="consents">
+        <label class="cb" id="cb-pd-l">
+          <input type="checkbox" id="cb-pd">
+          <span>Я даю <a href="${CONFIG.docs.consent}" target="_blank" rel="noopener">согласие</a> на обработку моих персональных данных и ознакомлен(а) с <a href="${CONFIG.docs.privacy}" target="_blank" rel="noopener">Политикой обработки персональных данных</a>.</span>
+        </label>
+        <label class="cb">
+          <input type="checkbox" id="cb-ads">
+          <span>Я хочу получать письма и сообщения о программах и эфирах. Отписаться можно в один клик. <a href="${CONFIG.docs.ads}" target="_blank" rel="noopener">Условия рассылки</a></span>
+        </label>
+      </div>
+      <p class="promise">Сразу после записи откроем закрытый канал Виолы. Новое вы увидите там первыми, там же лучшие условия, подкасты и материалы, которых нет в открытом доступе.</p>
+      <div class="foot">
+        <button class="go big" id="send">Отправить заявку <span aria-hidden="true">→</span></button>
+        <p class="cta-note" id="hint">Команда Виолы напишет вам в Телеграм.</p>
+        <!-- Отдельным абзацем: подсказки валидации перетирают #hint, а это обещание должно оставаться на экране. -->
+        <p class="cta-note">После записи вас перекинет в обещанный Телеграм-канал.</p>
+        <button class="ghost" id="back-offer">← Назад</button>
+      </div>
+    </div>`);
+
+  const nameEl = n.querySelector("#f-name");
+  const tgEl = n.querySelector("#f-tg");
+  const btn = n.querySelector("#send");
+  const hint = n.querySelector("#hint");
+  const ask = n.querySelector("#ask");
+  const pd = n.querySelector("#cb-pd");
+  const pdLabel = n.querySelector("#cb-pd-l");
+  const ads = n.querySelector("#cb-ads");
+  const askNote = n.querySelector("#ask-need");
+  const hintText = hint ? hint.textContent : "";
+  let talk = "";
+
+  /* Снимаем предупреждение молча, как только человек исправил. */
+  function clearWarn() {
+    if (ask) ask.classList.remove("need");
+    if (askNote) askNote.hidden = true;
+    if (hint) { hint.classList.remove("err"); hint.textContent = hintText; }
+    nameEl.classList.remove("err");
+    tgEl.classList.remove("err");
+    if (pdLabel) pdLabel.classList.remove("err");
+  }
+
+  function warn(msg) {
+    if (!hint) return;
+    hint.textContent = msg;
+    hint.classList.add("err");
+  }
+
+  n.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => {
+    talk = c.dataset.v;
+    n.querySelectorAll(".chip").forEach(x => x.className = "chip");
+    c.className = "chip on";
+    clearWarn();
+  }));
+  if (pd) pd.addEventListener("change", () => { if (pd.checked) clearWarn(); });
+  [nameEl, tgEl].forEach(f => f.addEventListener("input", () => {
+    if (f.value.trim()) f.classList.remove("err");
+  }));
+
+  btn.addEventListener("click", () => {
+    const name = (nameEl.value || "").trim();
+    const contact = (tgEl.value || "").trim();
+    if (!name || !contact) {
+      if (!name) nameEl.classList.add("err");
+      if (!contact) tgEl.classList.add("err");
+      warn("Заполните оба поля — иначе не сможем вас позвать.");
+      (name ? tgEl : nameEl).focus();
+      return;
+    }
+    if (!talk) {
+      /* Главная причина «нажал, и ничего не происходит»: вопрос выше кнопки,
+         человек его пролистал. Поэтому подсвечиваем сам вопрос и подводим к нему экран. */
+      if (ask) {
+        ask.classList.add("need");
+        if (askNote) askNote.hidden = false;
+        if (ask.scrollIntoView) ask.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      warn("Сначала ответьте на вопрос выше.");
+      return;
+    }
+    if (pd && !pd.checked) {
+      /* Без согласия на обработку данных заявку принимать нельзя. */
+      pdLabel.classList.add("err");
+      if (pdLabel.scrollIntoView) pdLabel.scrollIntoView({ behavior: "smooth", block: "center" });
+      warn("Отметьте согласие на обработку персональных данных.");
+      return;
+    }
+    clearWarn();
+    btn.disabled = true;
+    btn.textContent = "Отправляю…";
+    sendLead(r, name, contact, talk, { pd: !!(pd && pd.checked), ads: !!(ads && ads.checked) });
+    /* Сначала рисуем «Готово», потом уводим в канал: на клиентах Телеграма
+       старше Bot API 7.0 openTelegramLink закрывает мини-апп, и экран
+       подтверждения человек бы не увидел вовсе. */
+    done();
+    openChannel();   // обещали «сразу после записи» — открываем сами
+  });
+  n.querySelector("#back-offer").addEventListener("click", () => offer(r));
+  render(n);
+}
+
+/* Внутри Телеграма уводим в канал сразу: это его собственный переход,
+   он открывается поверх и ничего не блокирует. В обычном браузере
+   не открываем ничего сами — там всплывающее окно просто съедят. */
+function openChannel() {
+  if (!CONFIG.channelUrl) return;
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg && tg.openTelegramLink) {
+    try { tg.openTelegramLink(CONFIG.channelUrl); } catch (e) {}
+  }
+}
+
+function done() {
+  const n = el(`
+    <div class="card">
+      <h2>Готово. Вы в списке первых.</h2>
+      <p class="lede">Когда откроем набор, напишем вам раньше остальных и по самой низкой цене.</p>
+      ${CONFIG.channelUrl ? `
+        <div class="foot">
+          <a class="go big" id="ch" href="${CONFIG.channelUrl}" target="_blank" rel="noopener">Забрать доступ в канал Виолы <span aria-hidden="true">→</span></a>
+          <p class="cta-note">Новое видите первыми, лучшие условия, подкасты и материалы, которых нет в открытом доступе.</p>
+        </div>` : ""}
+    </div>`);
+  const ch = n.querySelector("#ch");
+  if (ch) ch.addEventListener("click", (e) => {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (tg && tg.openTelegramLink) { e.preventDefault(); tg.openTelegramLink(CONFIG.channelUrl); }
+  });
+  render(n);
+}
+
+const BUFFER_KEY = "viola-pending";
+
+/* Откуда человек пришёл на тест. Меткой трафика считается только то, что
+   пришло с префиксом src_ — ?startapp=src_kanal даёт «kanal». Всё остальное
+   в «Источник» не идёт: тот же start_param в колесе читает pryamoyVhod()
+   как ключ витрины (neudobnye, ap, praktikum), и без префикса витрина
+   записывалась бы в колонку вместо канала трафика.
+   ⚠️ Пока ссылки в боте не переведены на src_, метка будет пустой.
+   Это ожидаемо, а не поломка. */
+function istochnik_() {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const p = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || "";
+  return p.indexOf("src_") === 0 ? p.slice(4) : "";
+}
+
+/* Пинг «открыл первый вопрос». Бот по нему отличает «не открывал тест»
+   от «начал и бросил» и шлёт разный текст. Один раз за жизнь страницы
+   и мимо буфера: потеряется — не страшно, это не лид, а лид буфер и так
+   держит. Человек, вернувшийся к незаконченному тесту, попадает сразу
+   на вопрос, кнопку «Начать» не жмёт, второго пинга не будет. */
+let pinged = false;
+function pingStart_() {
+  if (pinged) return;
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const u = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+  if (!u.id || !CONFIG.sheetUrl) return;
+  pinged = true;
+  send_({ type: "start", test: "empat", userId: u.id, istochnik: istochnik_() }).catch(() => {});
+}
+
+/* Данные уходят обычным GET с параметром: POST на веб-приложение Apps Script
+   у анонимных запросов упирается в редирект и не доходит. Проверено. */
+function send_(payload) {
+  return fetch(CONFIG.sheetUrl + "?payload=" + encodeURIComponent(JSON.stringify(payload)));
+}
+
+/* Кладём в буфер и пробуем отправить. Не дошло — полежит и уйдёт
+   при следующем открытии страницы. Иначе обрыв связи = потерянный лид. */
+function queue(item) {
+  buffer(item);
+  flush();
+}
+
+function sendLead(r, name, contact, talk, consent) {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const u = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+  const lead = {
+    type: "lead",
+    name: name, contact: contact, ready: talk || "",
+    rank: r.key, percent: r.pct,
+    userId: u.id || "", forks: forks,
+    /* Акцепт фиксируем так же, как на сайте: сами галочки, время и редакция документа. */
+    accept_pd: consent && consent.pd ? "да" : "",
+    accept_ads: consent && consent.ads ? "да" : "",
+    consent_ts: new Date().toISOString(),
+    doc_version_consent: CONFIG.docVersionConsent || "",
+    /* Та же метка, что у прохождения: по ней видно, какой трафик даёт заявки,
+       а не только прохождения. */
+    istochnik: istochnik_()
+  };
+  queue(lead);
+}
+
+function buffer(item) {
+  try {
+    const all = JSON.parse(localStorage.getItem(BUFFER_KEY) || "[]");
+    all.push(item);
+    localStorage.setItem(BUFFER_KEY, JSON.stringify(all));
+  } catch (e) {}
+}
+
+/* Вынимаем из буфера ровно одну запись — ту, что подтвердил приёмник. */
+function unbuffer(item) {
+  try {
+    const s = JSON.stringify(item);
+    const all = JSON.parse(localStorage.getItem(BUFFER_KEY) || "[]");
+    const i = all.findIndex(x => JSON.stringify(x) === s);
+    if (i !== -1) {
+      all.splice(i, 1);
+      localStorage.setItem(BUFFER_KEY, JSON.stringify(all));
+    }
+  } catch (e) {}
+}
+
+const inFlight = new Set();
+
+/* Буфер чистим ТОЛЬКО после подтверждения от приёмника.
+   Раньше буфер очищался до отправки — и если Телеграм выгружал вкладку,
+   пока запрос в пути (а он уходит ровно тогда, когда человека уводит в канал),
+   лид пропадал молча. Дубль в таблице пережить можно, потерю контакта — нет. */
+function flush() {
+  if (!CONFIG.sheetUrl) return;
+  let all = [];
+  try { all = JSON.parse(localStorage.getItem(BUFFER_KEY) || "[]"); } catch (e) { return; }
+  if (!all.length) return;
+  /* Обёртка не про сеть, а про сам вызов: fetch есть не в каждом вебвью,
+     и на телефоне без него исключение уходило вверх — в boot(). Человек
+     вместо теста получал экран отказа из-за одной недоставленной заявки. */
+  try {
+    all.forEach(item => {
+      const key = JSON.stringify(item);
+      if (inFlight.has(key)) return;     // тот же элемент уже летит — второй раз не шлём
+      inFlight.add(key);
+      send_(item)
+        .then(res => res.text())
+        .then(txt => {
+          /* Приёмник отвечает {"ok":true}. Если вместо этого прилетела страница
+             входа Google — значит развёртывание закрыто, и запись НЕ сохранилась.
+             Оставляем её в буфере до следующего раза. */
+          if (txt.indexOf('"ok"') !== -1) unbuffer(item);
+        })
+        .catch(() => {})
+        .then(() => { inFlight.delete(key); });
+    });
+  } catch (e) {}
+}
+
+/* ——— отправка результата ———
+   Адресат один: таблица. Она получает всё сырьё для калибровки.
+
+   Бота отсюда НЕ трогаем. Telegram.WebApp.sendData по документации
+   «отправляет служебное сообщение боту, и мини-апп закрывается» — то есть
+   человек, открывший тест кнопкой клавиатуры, вылетал в чат ровно на переходе
+   к результату и своего типа не видел. Ранг и процент берём из таблицы. */
+function send(r) {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const user = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+
+  const seconds = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
+  const same = answers.length && answers.every(x => x === answers[0]);
+
+  const payload = {
+    seconds: seconds,
+    fast: seconds > 0 && seconds < 25,   // 24 вопроса быстрее 25 секунд — читать человек не успевал
+    monotone: same,                      // одна и та же кнопка на всё
+    rank: r.key,
+    percent: r.pct,
+    scales: r.scales,
+    forks: forks,
+    answers: answers.slice(),
+    userId: user.id || "",
+    userName: [user.first_name, user.last_name].filter(Boolean).join(" "),
+    /* Откуда человек пришёл на сам тест. Приходит из ссылки вида
+       t.me/…?startapp=src_reels — без этого не отличить трафик с рилсов от
+       трафика с канала, а конверсия у них разная в два раза. */
+    istochnik: istochnik_()
+  };
+  window.__result = payload;
+
+  /* Через буфер, как и лид: обрыв связи на этом шаге раньше терял прохождение молча. */
+  if (CONFIG.sheetUrl) queue(payload);
+}
+
+/* ——— сохранение прогресса ———
+   Мини-апп внутри Телеграма может перезагрузиться сам: свернули и вернулись,
+   система выгрузила вкладку из памяти, сработал жест закрытия. Страница при этом
+   стартует заново, и без сохранения человек оказывается в начале теста.
+   Держим ответы в памяти браузера и возвращаем его на то же место. */
+const STATE_KEY = "viola-state";
+const TTL_MID = 24 * 3600e3;   // недопройденный тест живёт сутки
+/* Сутки, а не три часа: первое касание бота уходит через три часа и говорит
+   «там осталось буквально три минуты». Если прогресс к этому моменту стёрт,
+   человек начинает с нуля, и текст врёт. */
+const TTL_DONE = 24 * 3600e3;  // готовый результат — сутки
+
+function saveState() {
+  try {
+    localStorage.setItem(STATE_KEY, JSON.stringify({
+      t: Date.now(), stage: stage, idx: idx,
+      answers: answers.slice(), forks: forks, startedAt: startedAt,
+      res: lastResult
+    }));
+  } catch (e) {}
+}
+
+function clearState() {
+  try { localStorage.removeItem(STATE_KEY); } catch (e) {}
+}
+
+/* Шкалы, без которых экран результата не построить: powers() читает их
+   напрямую. Раньше запись без них роняла запуск. */
+const SCALES_NEEDED = ["A", "P", "I", "B", "C", "G", "L"];
+
+/* Сохранённое прохождение могло остаться от прежней версии теста: вопросы
+   и способ хранения результата менялись, а запись живёт до суток. Такое
+   состояние роняло boot(), и человек при каждом открытии видел экран
+   «тест не открылся» — весь срок хранения. Не сошлось — молча начинаем
+   заново: потерять полтора экрана ответов не так дорого, как сутки не мочь
+   войти. Проходящему сейчас это ничем не грозит — его запись форме отвечает. */
+function stateOk_(s) {
+  const a = s.answers;
+  if (!Array.isArray(a) || a.length > Q.length) return false;
+  if (!a.every(v => typeof v === "number" && v >= 0 && v <= 3)) return false;
+  if (s.res) {
+    if (!RESULTS[s.res.key]) return false;
+    const sc = s.res.scales;
+    if (!sc || typeof sc !== "object") return false;
+    if (!SCALES_NEEDED.every(k => typeof sc[k] === "number")) return false;
+  }
+  return true;
+}
+
+function loadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STATE_KEY) || "null");
+    if (!s || !s.t) return null;
+    const done = (s.answers || []).length === Q.length;
+    if (Date.now() - s.t > (done ? TTL_DONE : TTL_MID)) { clearState(); return null; }
+    if (!stateOk_(s)) { clearState(); return null; }
+    return s;
+  } catch (e) { return null; }
+}
+
+function boot() {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    /* Экран результата длинный. Пока листаешь его вниз, Телеграм может принять
+       прокрутку за жест «свернуть» и утащить приложение. Bot API 7.7+ */
+    if (tg.disableVerticalSwipes) { try { tg.disableVerticalSwipes(); } catch (e) {} }
+  }
+
+  flush();   // всё, что не ушло в прошлый раз, отправляем при каждом открытии
+
+  const s = loadState();
+  if (!s) { intro(); return; }
+
+  (s.answers || []).forEach(v => answers.push(v));
+  Object.keys(s.forks || {}).forEach(k => { forks[k] = s.forks[k]; });
+  startedAt = s.startedAt || 0;
+
+  if (answers.length === Q.length) {
+    if (s.stage === "fork" && (s.idx || 0) < FORKS.length) { idx = s.idx || 0; fork(); return; }
+    /* Аргумент обязателен: без него result() отправит прохождение в таблицу второй раз.
+       Берём сохранённый вердикт, если он есть, — тогда тип не переиграется. */
+    result(s.res || score());
+    return;
+  }
+  if (s.stage === "q" && answers.length) { idx = Math.min(s.idx || 0, Q.length - 1); question(); return; }
+
+  answers.length = 0;
+  intro();
+}
+
+/* Стартуем не сразу: страховка наверху дождётся Телеграма — или того, что его
+   не будет, — и позовёт сама. Прямой вызов оставлен на случай, если верхний
+   блок почему-то не отработал: без запуска тест не оставляем ни при каких условиях. */
+function run() {
+  try {
+    boot();
+  } catch (e) {
+    if (window.__fallback) window.__fallback(e && e.message ? e.message : e);
+  }
+}
+
+if (window.__appStart) window.__appStart(run); else run();
+</script>
