@@ -1,3 +1,9 @@
 {
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/export",
+      "schedule": "*/15 * * * *"
+    }
+  ]
 }
