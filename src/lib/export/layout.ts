@@ -20,7 +20,15 @@ const REPEAT_BG: Color = { red: 0.91, green: 0.941, blue: 0.996 };
 // Первая строка каждого человека на листе событий — чтобы блоки не слипались.
 const PERSON_START_BG: Color = { red: 0.945, green: 0.953, blue: 0.957 };
 
-const DETAILS_WIDTH = 560;
+/* Ширины колонок заданы, а не подобраны автоматически. autoResize меряет
+   самую широкую ячейку, а шапку в расчёт не берёт: в «Дате первой заявки»
+   лежит короткое «08.09.2026», колонка сжималась под него, и заголовок
+   обрезался до «ата первой заявк». Сверху на заголовок ещё налезает кнопка
+   фильтра — ей нужно около трёх десятков точек. Схема листов постоянная,
+   так что ширины проще задать один раз: заодно раскладка перестаёт прыгать
+   от выгрузки к выгрузке, а руководитель каждый день видит одно и то же. */
+const LEAD_WIDTHS = [170, 170, 175, 115, 130, 210, 240, 105, 95, 190];
+const EVENT_WIDTHS = [150, 170, 115, 175, 130, 150, 560];
 
 function gridRange(sheetId: number, startRow: number, endRow: number, startCol: number, endCol: number) {
   return {
@@ -97,7 +105,17 @@ export function cleanupRequests(sheetId: number, ruleCount: number, hasFilter: b
   return requests;
 }
 
-function commonRequests(sheetId: number, dataRows: number, columns: number): unknown[] {
+function columnWidths(sheetId: number, widths: number[]): unknown[] {
+  return widths.map((pixelSize, index) => ({
+    updateDimensionProperties: {
+      range: { sheetId, dimension: "COLUMNS", startIndex: index, endIndex: index + 1 },
+      properties: { pixelSize },
+      fields: "pixelSize",
+    },
+  }));
+}
+
+function commonRequests(sheetId: number, dataRows: number, columns: number, widths: number[]): unknown[] {
   return [
     {
       repeatCell: {
@@ -113,11 +131,7 @@ function commonRequests(sheetId: number, dataRows: number, columns: number): unk
         fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)",
       },
     },
-    {
-      autoResizeDimensions: {
-        dimensions: { sheetId, dimension: "COLUMNS", startIndex: 0, endIndex: columns },
-      },
-    },
+    ...columnWidths(sheetId, widths),
     {
       setBasicFilter: {
         filter: { range: gridRange(sheetId, 0, 1 + dataRows, 0, columns) },
@@ -161,7 +175,7 @@ export function leadRequests(sheetId: number, dataRows: number, columns: number)
     requests.push(conditionalRule(range, "=LEN($C2)=0", NO_CONTACT_BG, NO_CONTACT_FG));
   }
 
-  requests.push(...commonRequests(sheetId, dataRows, columns));
+  requests.push(...commonRequests(sheetId, dataRows, columns, LEAD_WIDTHS));
   return requests;
 }
 
@@ -194,18 +208,9 @@ export function eventRequests(sheetId: number, dataRows: number, columns: number
     });
   }
 
-  requests.push(...commonRequests(sheetId, dataRows, columns));
-
-  /* Ширину «Деталей» задаём после автоподбора: по содержимому колонка
-     растянулась бы на пол-экрана и утащила остальные за границу окна.
-     На этой ширине почти всякая выжимка укладывается в одну строку. */
-  requests.push({
-    updateDimensionProperties: {
-      range: { sheetId, dimension: "COLUMNS", startIndex: columns - 1, endIndex: columns },
-      properties: { pixelSize: DETAILS_WIDTH },
-      fields: "pixelSize",
-    },
-  });
-
+  /* Последняя в EVENT_WIDTHS — «Детали»: по содержимому колонка растянулась
+     бы на пол-экрана и утащила остальные за границу окна, поэтому ширина
+     задана, а текст в ней переносится по строкам. */
+  requests.push(...commonRequests(sheetId, dataRows, columns, EVENT_WIDTHS));
   return requests;
 }
