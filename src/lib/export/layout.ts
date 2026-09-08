@@ -128,7 +128,7 @@ function commonRequests(sheetId: number, dataRows: number, columns: number): unk
 
 /* Лист «Заявки»: 10 колонок, A..J.
    A — дата первой заявки, C — контакт, I — заявок, J — дата последней. */
-export function leadRequests(sheetId: number, dataRows: number, columns: number, freshSince: number): unknown[] {
+export function leadRequests(sheetId: number, dataRows: number, columns: number): unknown[] {
   const requests: unknown[] = [];
 
   if (dataRows > 0) {
@@ -152,7 +152,12 @@ export function leadRequests(sheetId: number, dataRows: number, columns: number,
        чтобы наверху оказалось «нет контакта» — оно и должно перекрывать
        остальные, потому что это брак, а не оттенок. */
     requests.push(conditionalRule(range, "=$I2>1", REPEAT_BG));
-    requests.push(conditionalRule(range, `=$J2>=${freshSince.toFixed(6)}`, FRESH_BG));
+    /* NOW()-1, а не готовое число: формулу Google разбирает в локали самой
+       таблицы, и дробное число с точкой в русской локали для неё невалидно
+       (там разделитель — запятая), выгрузка падала целиком. Заодно порог
+       перестаёт замерзать на момент выгрузки: между двумя запусками
+       «за последние сутки» считается от текущего момента, а не от прошлого. */
+    requests.push(conditionalRule(range, "=$J2>=NOW()-1", FRESH_BG));
     requests.push(conditionalRule(range, "=LEN($C2)=0", NO_CONTACT_BG, NO_CONTACT_FG));
   }
 

@@ -8,7 +8,6 @@ import {
   valuesBatchUpdate,
   type Sheet,
 } from "@/lib/google";
-import { nowSerial } from "@/lib/export/format";
 import { cleanupRequests, eventRequests, leadRequests, resizeRequest } from "@/lib/export/layout";
 import { buildRows, EVENT_HEADER, LEAD_HEADER } from "@/lib/export/rows";
 
@@ -161,11 +160,8 @@ export async function runExport(force: boolean): Promise<ExportResult> {
     { range: `${quoteTitle(EVENTS_SHEET)}!A1`, values: [EVENT_HEADER, ...rows.events] },
   ]);
 
-  // Сутки назад от текущего момента — порог подсветки свежих заявок.
-  const freshSince = nowSerial() - 1;
-
   await batchUpdate(spreadsheetId, [
-    ...leadRequests(leadsSheet.properties.sheetId, rows.leads.length, LEAD_HEADER.length, freshSince),
+    ...leadRequests(leadsSheet.properties.sheetId, rows.leads.length, LEAD_HEADER.length),
     ...eventRequests(eventsSheet.properties.sheetId, rows.events.length, EVENT_HEADER.length),
   ]);
 
