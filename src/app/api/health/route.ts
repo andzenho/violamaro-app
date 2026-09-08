@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 export async function GET() {
   try {
-    const { error } = await supabase.auth.admin.listUsers({ perPage: 1 });
+    const { error } = await getSupabase().auth.admin.listUsers({
+      perPage: 1,
+    });
     if (error) throw error;
 
     return NextResponse.json({
