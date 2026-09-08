@@ -16,12 +16,28 @@ const PLATFORMS: Record<string, string> = {
   web: "Сайт",
 };
 
+// «Откуда» на листах заявок — не канал (это уже «Источник»), а то, какая
+// из трёх форм её прислала. Различаются они только на двух внешних сайтах:
+// у них source — фиксированная метка самого сайта (см. /api/lead). Всё
+// прочее — источники самого теста (или событие без source вовсе) — точно
+// «Тест», других мест анкета предзаписи взяться не может.
+const ORIGIN_BY_SOURCE: Record<string, string> = {
+  "site-pre": "Сайт предзаписи",
+  "site-pe": "Сайт ПЭ",
+};
+
+// «Источник» человека — это его first_source, метка самого первого касания.
+// Если человек впервые появился прямо на /pre/ или главном сайте (см.
+// /api/lead), первым касанием будет site-pre/site-pe — те же ключи, что и
+// у «Откуда», поэтому подписи для них переиспользуются из ORIGIN_BY_SOURCE,
+// а не заводятся вторым словарём.
 const SOURCES: Record<string, string> = {
   "tg-bot": "Телеграм-бот",
   "max-bot": "MAX-бот",
   "vk-post": "Пост ВКонтакте",
   landing: "Лендинг",
   chat: "Чат",
+  ...ORIGIN_BY_SOURCE,
 };
 
 const TESTS: Record<string, string> = {
@@ -69,6 +85,7 @@ export const testLabel = (key?: string | null) => label(TESTS, key);
 export const eventLabel = (key?: string | null) => label(EVENTS, key);
 export const rankLabel = (key?: string | null) => label(RANKS, key);
 export const sphereLabel = (key?: string | null) => label(SPHERES, key);
+export const originLabel = (key?: string | null) => (key && ORIGIN_BY_SOURCE[key]) || "Тест";
 
 // worst в «Колесе» приходит одной строкой: "telo,dengi".
 export function sphereListLabel(raw?: string | null): string {

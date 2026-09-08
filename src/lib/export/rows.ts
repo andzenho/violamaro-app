@@ -1,20 +1,27 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { detailsLine, testOutcome, toSerial } from "@/lib/export/format";
-import { eventLabel, platformLabel, sourceLabel, testLabel } from "@/lib/export/labels";
+import { detailsLine, forkText, percent, testOutcome, toSerial } from "@/lib/export/format";
+import { eventLabel, originLabel, platformLabel, sourceLabel, sphereListLabel, testLabel } from "@/lib/export/labels";
+import { leadForm } from "@/lib/leadForm";
 import { getSupabase } from "@/lib/supabase";
 
-export const LEAD_HEADER = [
+// Общие для обоих листов заявок колонки; «Заявки на ПЭ» добавляет к ним
+// «Тариф» и «Готовность» в конце.
+const BASE_LEAD_HEADER = [
   "Дата первой заявки",
   "Имя",
   "Контакт",
   "Платформа",
   "Источник",
+  "Откуда",
   "Тест",
   "Результат",
   "Процент",
   "Заявок",
   "Дата последней заявки",
 ];
+
+export const PREDZAPIS_LEAD_HEADER = BASE_LEAD_HEADER;
+export const PE_LEAD_HEADER = [...BASE_LEAD_HEADER, "Тариф", "Готовность"];
 
 export const EVENT_HEADER = [
   "Дата и время",
@@ -24,6 +31,36 @@ export const EVENT_HEADER = [
   "Источник",
   "Тест",
   "Детали",
+];
+
+// Логин и ID в мессенджере — только здесь, на листах тестов: по ним команда
+// пишет человеку напрямую. На листах заявок их нет — там о них не спрашивают.
+export const EMPAT_HEADER = [
+  "Дата",
+  "Имя",
+  "Логин",
+  "ID в мессенджере",
+  "Платформа",
+  "Источник",
+  "Профиль",
+  "Процент",
+  "Что менять первым",
+  "Где съедает",
+  "Заявка",
+];
+
+export const KOLESO_HEADER = [
+  "Дата",
+  "Имя",
+  "Логин",
+  "ID в мессенджере",
+  "Платформа",
+  "Источник",
+  "Отдаю",
+  "Остаётся",
+  "Просевшие сферы",
+  "Где тяжелее",
+  "Заявка",
 ];
 
 interface PersonRow {
@@ -77,6 +114,10 @@ function fullName(person: PersonRow): string {
   return [person.first_name, person.last_name].map((p) => p?.trim()).filter(Boolean).join(" ");
 }
 
+function str(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function payloadText(payload: Record<string, unknown> | null, key: string): string {
   const value = payload?.[key];
   return typeof value === "string" ? value.trim() : "";
@@ -106,9 +147,9 @@ function contactFallback(person: PersonRow): string {
 
 /* «Человек» на листе событий: имя, иначе логин, иначе платформа и id.
    Имя из заявки идёт первым, а поля человека вторыми — ровно как в колонке
-   «Имя» на листе «Заявки». Иначе один и тот же человек назывался бы на двух
-   листах по-разному: в заявке «Иван Петров», как он представился сам, а в
-   событиях «Иван», как его завёл бот. */
+   «Имя» на листах заявок. Иначе один и тот же человек назывался бы на
+   разных листах по-разному: в заявке «Иван Петров», как он представился
+   сам, а в событиях «Иван», как его завёл бот. */
 function personTitle(person: PersonRow, leads: EventRow[]): string {
   const name = firstFilled(leads, "name") || fullName(person);
   if (name) return name;
@@ -120,9 +161,116 @@ function personTitle(person: PersonRow, leads: EventRow[]): string {
   return platform || "Без имени";
 }
 
+// «ID в мессенджере» и «Логин» — только для настоящих мессенджеров. У
+// платформы web там лежит либо наш анонимный id (web_a1b2c3d4), либо ничего:
+// ни то, ни другое не годится, чтобы написать человеку напрямую.
+const MESSENGER_PLATFORMS = new Set(["tg", "max", "vk"]);
+
+function messengerId(person: PersonRow): string {
+  if (!person.platform || !MESSENGER_PLATFORMS.has(person.platform)) return "";
+  return person.platform_user_id?.trim() ?? "";
+}
+
+function messengerLogin(person: PersonRow): string {
+  if (!person.platform || !MESSENGER_PLATFORMS.has(person.platform)) return "";
+  const username = person.username?.trim();
+  return username ? `@${username}` : "";
+}
+
+interface SortedRow {
+  sort: number;
+  row: unknown[];
+}
+
+/* Общая часть листов «Анкета предзаписи» и «Заявки на ПЭ»: разница только
+   в том, каким payload.form отфильтрованы заявки и есть ли Тариф/Готовность
+   в конце строки. leads здесь — уже заявки только нужного вида. */
+function buildLeadRow(person: PersonRow, leads: EventRow[], lastDone: EventRow | undefined, withTariff: boolean): SortedRow {
+  const outcome = testOutcome(lastDone?.test ?? null, lastDone?.payload ?? null);
+
+  const tests = [...new Set(leads.map((e) => e.test).filter(Boolean))]
+    .map((t) => testLabel(t))
+    .join(", ");
+
+  // Откуда — по source самих заявок этого вида: человек мог оставить
+  // предзапись и через тест, и потом ещё раз через /pre/, тогда покажем оба.
+  const origins = [...new Set(leads.map((e) => originLabel(e.source)))].join(", ");
+
+  const lastLeadAt = toSerial(leads[leads.length - 1].created_at);
+
+  const row: unknown[] = [
+    toSerial(leads[0].created_at),
+    firstFilled(leads, "name") || fullName(person),
+    firstFilled(leads, "contact") || contactFallback(person),
+    platformLabel(person.platform),
+    sourceLabel(person.first_source),
+    origins,
+    tests,
+    outcome.result,
+    outcome.percent,
+    leads.length,
+    lastLeadAt,
+  ];
+
+  if (withTariff) {
+    // Тот же ключ "ready", что использует форма предзаписи теста — «Детали»
+    // на «Событиях» и так его показывают, отдельный словарь не нужен.
+    row.push(firstFilled(leads, "tariff"), firstFilled(leads, "ready"));
+  }
+
+  return { sort: lastLeadAt, row };
+}
+
+function empatRow(person: PersonRow, lastDone: EventRow, hasLead: boolean): SortedRow {
+  const outcome = testOutcome("empat", lastDone.payload);
+  const sort = toSerial(lastDone.created_at);
+
+  return {
+    sort,
+    row: [
+      sort,
+      fullName(person),
+      messengerLogin(person),
+      messengerId(person),
+      platformLabel(person.platform),
+      sourceLabel(lastDone.source),
+      outcome.result,
+      outcome.percent,
+      forkText(lastDone.payload, "zapros"),
+      forkText(lastDone.payload, "bol"),
+      hasLead ? "да" : "нет",
+    ],
+  };
+}
+
+function kolesoRow(person: PersonRow, lastDone: EventRow, hasLead: boolean): SortedRow {
+  const payload = lastDone.payload;
+  const sort = toSerial(lastDone.created_at);
+
+  return {
+    sort,
+    row: [
+      sort,
+      fullName(person),
+      messengerLogin(person),
+      messengerId(person),
+      platformLabel(person.platform),
+      sourceLabel(lastDone.source),
+      percent(payload?.otdayu),
+      percent(payload?.ostaetsya),
+      sphereListLabel(str(payload?.worst)),
+      forkText(payload, "bol"),
+      hasLead ? "да" : "нет",
+    ],
+  };
+}
+
 export interface ExportRows {
-  leads: unknown[][];
+  predzapisLeads: unknown[][];
+  peLeads: unknown[][];
   events: unknown[][];
+  empat: unknown[][];
+  koleso: unknown[][];
   peopleCount: number;
 }
 
@@ -146,8 +294,11 @@ export async function buildRows(): Promise<ExportRows> {
     else byPerson.set(event.person_id, [event]);
   }
 
-  const leadRows: { sort: number; row: unknown[] }[] = [];
+  const predzapisRows: SortedRow[] = [];
+  const peRows: SortedRow[] = [];
   const eventGroups: { sort: number; rows: unknown[][] }[] = [];
+  const empatRows: SortedRow[] = [];
+  const kolesoRows: SortedRow[] = [];
 
   for (const person of people) {
     // События уже отсортированы по времени по возрастанию — группировка
@@ -160,7 +311,7 @@ export async function buildRows(): Promise<ExportRows> {
 
     eventGroups.push({
       // Ключ сортировки групп — последнее событие, а не первое. Человек,
-      // вернувшийся сегодня после месяца молчания, в «Заявках» окажется
+      // вернувшийся сегодня после месяца молчания, в заявках окажется
       // наверху; если здесь его группа останется на месяце давности, найти
       // её будет негде.
       sort: toSerial(own[own.length - 1].created_at),
@@ -175,45 +326,44 @@ export async function buildRows(): Promise<ExportRows> {
       ]),
     });
 
-    // Лист «Заявки» — только про тех, кто заявку оставил.
-    if (leads.length === 0) continue;
+    if (leads.length > 0) {
+      const lastDone = own.filter((e) => e.type === "test_done").at(-1);
 
-    const lastDone = own.filter((e) => e.type === "test_done").at(-1);
-    const outcome = testOutcome(lastDone?.test ?? null, lastDone?.payload ?? null);
+      const predzapisLeads = leads.filter((e) => leadForm(e.payload) === "predzapis");
+      if (predzapisLeads.length > 0) {
+        predzapisRows.push(buildLeadRow(person, predzapisLeads, lastDone, false));
+      }
 
-    const tests = [...new Set(leads.map((e) => e.test).filter(Boolean))]
-      .map((t) => testLabel(t))
-      .join(", ");
+      const peLeads = leads.filter((e) => leadForm(e.payload) === "pe");
+      if (peLeads.length > 0) {
+        peRows.push(buildLeadRow(person, peLeads, lastDone, true));
+      }
+    }
 
-    const lastLeadAt = toSerial(leads[leads.length - 1].created_at);
+    const hasLead = leads.length > 0;
 
-    leadRows.push({
-      sort: lastLeadAt,
-      row: [
-        toSerial(leads[0].created_at),
-        firstFilled(leads, "name") || fullName(person),
-        firstFilled(leads, "contact") || contactFallback(person),
-        platformLabel(person.platform),
-        sourceLabel(person.first_source),
-        tests,
-        outcome.result,
-        outcome.percent,
-        leads.length,
-        lastLeadAt,
-      ],
-    });
+    const lastEmpat = own.filter((e) => e.type === "test_done" && e.test === "empat").at(-1);
+    if (lastEmpat) empatRows.push(empatRow(person, lastEmpat, hasLead));
+
+    const lastKoleso = own.filter((e) => e.type === "test_done" && e.test === "koleso").at(-1);
+    if (lastKoleso) kolesoRows.push(kolesoRow(person, lastKoleso, hasLead));
   }
 
-  /* Свежие сверху на обоих листах, и по одному правилу — по последней
-     активности: руководитель заходит за новыми заявками и ради них не
-     должен листать вниз. Внутри человека порядок обратный, по возрастанию:
-     иначе путь читался бы задом наперёд. */
-  leadRows.sort((a, b) => b.sort - a.sort);
+  /* Свежие сверху на всех листах, по последней активности; внутри группы на
+     «Событиях» порядок обратный, по возрастанию — иначе путь человека
+     читался бы задом наперёд. */
+  predzapisRows.sort((a, b) => b.sort - a.sort);
+  peRows.sort((a, b) => b.sort - a.sort);
   eventGroups.sort((a, b) => b.sort - a.sort);
+  empatRows.sort((a, b) => b.sort - a.sort);
+  kolesoRows.sort((a, b) => b.sort - a.sort);
 
   return {
-    leads: leadRows.map((r) => r.row),
+    predzapisLeads: predzapisRows.map((r) => r.row),
+    peLeads: peRows.map((r) => r.row),
     events: eventGroups.flatMap((g) => g.rows),
+    empat: empatRows.map((r) => r.row),
+    koleso: kolesoRows.map((r) => r.row),
     peopleCount: people.length,
   };
 }

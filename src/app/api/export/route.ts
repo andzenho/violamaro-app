@@ -22,7 +22,10 @@ async function run(force: boolean) {
     const result = await runExport(force);
     return NextResponse.json({
       ok: "1",
-      leads: String(result.leads),
+      predzapisLeads: String(result.predzapisLeads),
+      peLeads: String(result.peLeads),
+      empat: String(result.empat),
+      koleso: String(result.koleso),
       events: String(result.events),
       people: String(result.people),
     });

@@ -32,6 +32,18 @@ function rawPhone(phone?: string | null): string | null {
   return phone;
 }
 
+/* Контакт человек часто вводит одним полем: кто-то пишет @логин, кто-то
+   телефон. Раскладываем по колонкам, чтобы заявку можно было найти поиском
+   и чтобы работала склейка дублей — она идёт по username и phone_norm.
+   Используется формами, где контакт — одно поле (тест, анкета предзаписи);
+   там, где телефон и почта — отдельные поля, эта функция не нужна. */
+export function splitContact(contact: string | null): { username: string | null; phone: string | null } {
+  if (!contact) return { username: null, phone: null };
+  const digits = contact.replace(/\D/g, "");
+  if (digits.length >= 10) return { username: null, phone: contact };
+  return { username: normalizeUsername(contact), phone: null };
+}
+
 export interface EventBody {
   platform: Platform;
   platform_user_id?: string | null;

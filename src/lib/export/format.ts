@@ -52,7 +52,7 @@ function text(value: unknown): string {
   return "";
 }
 
-function percent(value: unknown): string {
+export function percent(value: unknown): string {
   const raw = text(value);
   if (!raw) return "";
   return /%$/.test(raw) ? raw : `${raw}%`;
@@ -68,6 +68,15 @@ function duration(value: unknown): string {
 }
 
 type Payload = Record<string, unknown> | null;
+
+/* Текст развилки — из payload.forks на test_done, например forks.zapros_text
+   («Отношения — чтобы рядом было тепло, а не выжимание»). Сам тест уже
+   кладёт готовый текст рядом с кодом ответа, разбирать код не нужно. */
+export function forkText(payload: Payload, key: string): string {
+  const forks = payload?.forks;
+  if (!forks || typeof forks !== "object") return "";
+  return text((forks as Record<string, unknown>)[`${key}_text`]);
+}
 
 /* Поля, которые в «Детали» не попадают никогда. Сырьё для калибровки
    (ответы, шкалы, развилки) — это сотни чисел, читать их человеку незачем.

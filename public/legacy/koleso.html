@@ -3146,6 +3146,8 @@ function sendGo(r, name, contact, consent) {
 const K_KEY = "viola-k";
 const SRC_KEY = "viola-src";
 const ANON_KEY = "viola-anon";
+const U_KEY = "viola-u";
+const N_KEY = "viola-n";
 
 function izAdresa_(имя, ключ) {
   let v = "";
@@ -3157,11 +3159,16 @@ function izAdresa_(имя, ключ) {
   return v;
 }
 
-/* Читаем оба сразу при запуске, а не при первом событии: человек может
+/* Читаем всё сразу при запуске, а не при первом событии: человек может
    перезагрузить страницу раньше, чем что-то отправится, — и адрес к тому
    моменту уже будет без параметров, а сохранить их будет некому. */
 const K = izAdresa_("k", K_KEY);
 const SRC = izAdresa_("src", SRC_KEY);
+// u — логин в мессенджере (без @), n — имя. Бот подставляет их в ссылку
+// сам, как k и src: тогда колонки «Логин»/«Имя» на листах тестов заполнятся
+// уже с первого события, а не только если человек потом оставит заявку.
+const U = izAdresa_("u", U_KEY);
+const N = izAdresa_("n", N_KEY);
 
 /* Метка источника. Раньше приходила из start_param мини-аппа, теперь из
    адреса. Отдаём как есть: что из неё принять, решает сервер. */
@@ -3213,6 +3220,8 @@ function track_(тип, payload, ещё) {
     k: K,
     anon_id: anonId_(),
     source: istochnik_(),
+    u: U,
+    n: N,
     payload: payload || null
   };
   if (ещё) Object.keys(ещё).forEach(k => { body[k] = ещё[k]; });

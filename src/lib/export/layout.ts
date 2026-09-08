@@ -1,5 +1,5 @@
-/* Оформление обоих листов. Собрано отдельно от данных: здесь только запросы
-   к Sheets API, ни одной строки из базы. */
+/* Оформление всех пяти листов. Собрано отдельно от данных: здесь только
+   запросы к Sheets API, ни одной строки из базы. */
 
 interface Color {
   red: number;
@@ -27,8 +27,25 @@ const PERSON_START_BG: Color = { red: 0.945, green: 0.953, blue: 0.957 };
    фильтра — ей нужно около трёх десятков точек. Схема листов постоянная,
    так что ширины проще задать один раз: заодно раскладка перестаёт прыгать
    от выгрузки к выгрузке, а руководитель каждый день видит одно и то же. */
-const LEAD_WIDTHS = [170, 170, 175, 115, 130, 210, 240, 105, 95, 190];
-const EVENT_WIDTHS = [150, 170, 115, 175, 130, 150, 560];
+
+// Дата1, Имя, Контакт, Платформа, Источник, Откуда, Тест, Результат,
+// Процент, Заявок, Дата2.
+export const PREDZAPIS_LEAD_WIDTHS = [170, 170, 175, 115, 130, 140, 210, 240, 105, 95, 190];
+// То же плюс Тариф, Готовность.
+export const PE_LEAD_WIDTHS = [...PREDZAPIS_LEAD_WIDTHS, 140, 170];
+
+export const EVENT_WIDTHS = [150, 170, 115, 175, 130, 150, 560];
+
+// Дата, Имя, Логин, ID, Платформа, Источник, Профиль, Процент,
+// Что менять первым, Где съедает, Заявка.
+export const EMPAT_WIDTHS = [130, 170, 150, 150, 115, 130, 220, 90, 260, 260, 90];
+// Дата, Имя, Логин, ID, Платформа, Источник, Отдаю, Остаётся,
+// Просевшие сферы, Где тяжелее, Заявка.
+export const KOLESO_WIDTHS = [130, 170, 150, 150, 115, 130, 90, 90, 220, 260, 90];
+
+// Число колонок общей части листов заявок (без Тарифа/Готовности) — по нему
+// отличаем «Заявки на ПЭ» от «Анкеты предзаписи», не передавая лишний флаг.
+const BASE_LEAD_COLUMNS = 11;
 
 function gridRange(sheetId: number, startRow: number, endRow: number, startCol: number, endCol: number) {
   return {
@@ -140,9 +157,10 @@ function commonRequests(sheetId: number, dataRows: number, columns: number, widt
   ];
 }
 
-/* Лист «Заявки»: 10 колонок, A..J.
-   A — дата первой заявки, C — контакт, I — заявок, J — дата последней. */
-export function leadRequests(sheetId: number, dataRows: number, columns: number): unknown[] {
+/* Листы «Анкета предзаписи» и «Заявки на ПЭ»: колонки A..K общие,
+   A — дата первой заявки, C — контакт, J — заявок, K — дата последней.
+   «Заявки на ПЭ» добавляет L — тариф, M — готовность. */
+export function leadRequests(sheetId: number, dataRows: number, columns: number, widths: number[]): unknown[] {
   const requests: unknown[] = [];
 
   if (dataRows > 0) {
@@ -150,14 +168,21 @@ export function leadRequests(sheetId: number, dataRows: number, columns: number)
        Так и в колонке стоит «08.09.2026», как просили, и подсветка «за
        последние сутки» считает ровно сутки, а не «вчера или сегодня». */
     requests.push(numberFormat(sheetId, dataRows, 0, "DATE", "dd.mm.yyyy"));
-    requests.push(numberFormat(sheetId, dataRows, 9, "DATE", "dd.mm.yyyy"));
+    requests.push(numberFormat(sheetId, dataRows, 10, "DATE", "dd.mm.yyyy"));
 
     /* Контакт — текстом, и это не перестраховка. Телефон с ведущим плюсом
        Таблицы принимают за формулу, ячейка становится #ERROR!, и заявка
        теряется. Запись идёт с valueInputOption RAW, а текстовый формат не
        даёт таблице передумать позже — например, когда строку тронут руками. */
     requests.push(numberFormat(sheetId, dataRows, 2, "TEXT"));
-    requests.push(numberFormat(sheetId, dataRows, 8, "NUMBER", "0"));
+    requests.push(numberFormat(sheetId, dataRows, 9, "NUMBER", "0"));
+
+    // «Заявки на ПЭ»: тариф иногда выглядит числом ("5000") — та же
+    // защита, что у контакта, чтобы Таблицы не превратили его в формулу.
+    if (columns > BASE_LEAD_COLUMNS) {
+      requests.push(numberFormat(sheetId, dataRows, 11, "TEXT"));
+      requests.push(numberFormat(sheetId, dataRows, 12, "TEXT"));
+    }
 
     const range = gridRange(sheetId, 1, 1 + dataRows, 0, columns);
 
@@ -177,12 +202,12 @@ export function leadRequests(sheetId: number, dataRows: number, columns: number)
        (там разделитель — запятая), выгрузка падала целиком. Заодно порог
        перестаёт замерзать на момент выгрузки: между двумя запусками
        «за последние сутки» считается от текущего момента, а не от прошлого. */
-    requests.push(conditionalRule(range, "=$J2>=NOW()-1", FRESH_BG));
-    requests.push(conditionalRule(range, "=$I2>1", REPEAT_BG));
+    requests.push(conditionalRule(range, "=$K2>=NOW()-1", FRESH_BG));
+    requests.push(conditionalRule(range, "=$J2>1", REPEAT_BG));
     requests.push(conditionalRule(range, "=LEN($C2)=0", NO_CONTACT_BG, NO_CONTACT_FG));
   }
 
-  requests.push(...commonRequests(sheetId, dataRows, columns, LEAD_WIDTHS));
+  requests.push(...commonRequests(sheetId, dataRows, columns, widths));
   return requests;
 }
 
@@ -219,5 +244,19 @@ export function eventRequests(sheetId: number, dataRows: number, columns: number
      бы на пол-экрана и утащила остальные за границу окна, поэтому ширина
      задана, а текст в ней переносится по строкам. */
   requests.push(...commonRequests(sheetId, dataRows, columns, EVENT_WIDTHS));
+  return requests;
+}
+
+/* Листы тестов («Тест: Эмпат ли вы», «Тест: Колесо эмпата»): одна строка на
+   человека, без подсветки — это не очередь заявок, а полный список
+   прошедших, подсвечивать в нём нечего. A — дата. */
+export function testRequests(sheetId: number, dataRows: number, columns: number, widths: number[]): unknown[] {
+  const requests: unknown[] = [];
+
+  if (dataRows > 0) {
+    requests.push(numberFormat(sheetId, dataRows, 0, "DATE", "dd.mm.yyyy"));
+  }
+
+  requests.push(...commonRequests(sheetId, dataRows, columns, widths));
   return requests;
 }

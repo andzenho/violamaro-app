@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { errorMessage } from "@/lib/error";
-import { normalizeUsername, type Platform } from "@/lib/people";
+import { normalizeUsername, splitContact, type Platform } from "@/lib/people";
 import { recordEvent, type EventInput } from "@/lib/track";
 
 /* Этот роут открыт наружу без ключа: его зовёт сам тест из браузера, а
@@ -31,6 +31,8 @@ interface TrackBody {
   source?: unknown;
   name?: unknown;
   contact?: unknown;
+  u?: unknown;
+  n?: unknown;
   payload?: unknown;
 }
 
@@ -44,17 +46,6 @@ function text(value: unknown, limit: number): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed ? trimmed.slice(0, limit) : null;
-}
-
-/* Контакт человек вводит одним полем: кто-то пишет @логин, кто-то телефон.
-   Раскладываем по колонкам, чтобы заявку можно было найти поиском и чтобы
-   работала склейка дублей — она идёт по username и phone_norm. Само поле
-   при этом остаётся в payload как есть. */
-function splitContact(contact: string | null): { username: string | null; phone: string | null } {
-  if (!contact) return { username: null, phone: null };
-  const digits = contact.replace(/\D/g, "");
-  if (digits.length >= 10) return { username: null, phone: contact };
-  return { username: normalizeUsername(contact), phone: null };
 }
 
 export async function POST(request: Request) {
@@ -95,6 +86,13 @@ export async function POST(request: Request) {
   const contact = text(body.contact, 200);
   const { username, phone } = splitContact(contact);
 
+  // Логин и имя из ссылки бота: ?u=ivan_petrov&n=Иван, бот подставляет их
+  // сам, как k и src. Приходят на каждом событии, не только на заявке —
+  // это самое раннее место, где можно узнать человека, и колонки «Логин»/
+  // «Имя» на листах тестов заполнятся уже с первого касания.
+  const botUsername = normalizeUsername(text(body.u, 100));
+  const botName = text(body.n, 200);
+
   const input: EventInput = {
     platform,
     platform_user_id: platformUserId,
@@ -102,9 +100,10 @@ export async function POST(request: Request) {
     test,
     source,
     payload,
-    // Имя и контакт появляются только в заявке — на прочих событиях их нет.
-    first_name: type === "lead" ? name : null,
-    username: type === "lead" ? username : null,
+    // На заявке в приоритете то, что человек ввёл сам; не ввёл — берём то,
+    // что уже знает бот. На прочих событиях контакта ещё нет, есть только бот.
+    first_name: (type === "lead" ? name : null) || botName,
+    username: (type === "lead" ? username : null) || botUsername,
     phone: type === "lead" ? phone : null,
   };
 
