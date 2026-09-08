@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorMessage } from "@/lib/error";
 import { getSupabase } from "@/lib/supabase";
 
 export async function GET() {
@@ -15,8 +16,9 @@ export async function GET() {
       version: "1",
     });
   } catch (error) {
+    console.error("GET /api/health failed:", error);
     return NextResponse.json(
-      { ok: false, error: String(error) },
+      { ok: false, error: errorMessage(error) },
       { status: 500 }
     );
   }
